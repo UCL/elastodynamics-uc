@@ -5,8 +5,8 @@ Unique continuation for elastodynamics.
 import numpy as np
 import ufl
 from mpi4py import MPI
-from petsc4py.PETSc import ScalarType
 from dolfinx import mesh, fem, plot, io
+from petsc4py.PETSc import ScalarType
 from math import pi,log
 from meshes import get_mesh_hierarchy, get_mesh_hierarchy_nonconvex
 from problems import elastic_convex, elastic_nonconvex
@@ -61,13 +61,20 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
     omega_ind.interpolate(problem.omega_Ind)
     
     fdim = msh.topology.dim - 1
-    boundary_facets = mesh.locate_entities_boundary(msh, fdim, problem.boundary_indicator)
-
+    V0, submap = VW.sub(0).collapse()
+    W0, submap = VW.sub(1).collapse()
+    # determine boundary DOFs
+    boundary_dofs0 = fem.locate_dofs_geometrical((VW.sub(0),V0), problem.boundary_indicator )
+    boundary_dofs1 = fem.locate_dofs_geometrical((VW.sub(1),W0), problem.boundary_indicator )
+    
     u_D = np.array([0,0], dtype=ScalarType)
-    bc = fem.dirichletbc(u_D, fem.locate_dofs_topological(VW.sub(1), fdim, boundary_facets), VW.sub(1))
+    bc = fem.dirichletbc( np.array([0,0], dtype=ScalarType), boundary_dofs1[0], VW.sub(1))
     bcs = [bc] 
-    if add_bc:  # adding homogeneous Dirichlet bc to make problem well-posed
-        bc0 = fem.dirichletbc(u_D, fem.locate_dofs_topological(VW.sub(0), fdim, boundary_facets), VW.sub(0))
+    if add_bc:
+        ue_h = fem.Function(V0)
+        u_expr = fem.Expression(ue, V0.element.interpolation_points)
+        ue_h.interpolate(u_expr)
+        bc0 = fem.dirichletbc(ue_h, boundary_dofs0, VW.sub(0))
         bcs.append(bc0)
 
     a = omega_ind * ufl.inner(u,v) * ufl.dx
@@ -103,14 +110,15 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
 
 import matplotlib.pyplot as plt 
 
-ls_mesh = get_mesh_hierarchy(4)
+ls_mesh = get_mesh_hierarchy(3)
 #ls_mesh = get_mesh_hierarchy_nonconvex(4)
-refsol = get_reference_sol("oscillatory",kk=kk)
+#refsol = get_reference_sol("oscillatory",kk=kk)
+refsol = get_reference_sol("gaussian",kk=kk)
 #elastic_nonconvex.rho = -kk**2
 elastic_convex.rho = -kk**2
 
-#for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-3)], [ ScalarType(1e-3),ScalarType(1e-1)] ):
-for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-1)], [ ScalarType(5e-3),ScalarType(5e-1)] ):
+for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-3)], [ ScalarType(1e-3),ScalarType(1e-1)] ):
+#for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-1)], [ ScalarType(5e-3),ScalarType(5e-1)] ):
     print("Considering {0} problem".format(problem_type))
     l2_errors = [ ]
     ndofs = [] 

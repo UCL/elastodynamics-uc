@@ -127,14 +127,24 @@ def SolveProblem(msh,order=1,export_VTK=False,sol_which=1,add_bc=False):
     #VW = fem.FunctionSpace(msh, p_cg_order_primal * p_cg_order_dual )
     ndof = VW.sub(0).dofmap.index_map.size_global * VW.sub(0).dofmap.index_map_bs 
 
-    facets = mesh.locate_entities_boundary(msh, dim=1,
-                                           marker=lambda x: ( np.isclose(x[0], 0.0) | np.isclose(x[0], 1.0) | np.isclose(x[1], 0.0) | np.isclose(x[1], 1.0) ))
-    dofs = fem.locate_dofs_topological(V=VW.sub(1), entity_dim=1, entities=facets)
-    bc = fem.dirichletbc(value=ScalarType(0), dofs=dofs, V=VW.sub(1))
+    def boundary_indicator (x):
+        return ( np.isclose(x[0], 0.0) | np.isclose(x[0], 1.0) | np.isclose(x[1], 0.0) | np.isclose(x[1], 1.0) )
+ 
+    V0, submap = VW.sub(0).collapse()
+    W0, submap = VW.sub(1).collapse()
+    # determine boundary DOFs
+    boundary_dofs0 = fem.locate_dofs_geometrical((VW.sub(0),V0), boundary_indicator )
+    boundary_dofs1 = fem.locate_dofs_geometrical((VW.sub(1),W0), boundary_indicator )
+
+    # apply dirichlet BC to boundary DOFs
+    bc = fem.dirichletbc(ScalarType(0), boundary_dofs1[0], VW.sub(1))
+
     bcs = [bc]
     if add_bc:
-        dofs0 = fem.locate_dofs_topological(V=VW.sub(0), entity_dim=1, entities=facets)
-        bc0 = fem.dirichletbc(value=ScalarType(0), dofs=dofs0,V=VW.sub(0))
+        ue_h = fem.Function(V0)
+        u_expr = fem.Expression(ue, V0.element.interpolation_points)
+        ue_h.interpolate(u_expr)
+        bc0 = fem.dirichletbc(ue_h, boundary_dofs0, VW.sub(0))
         bcs.append(bc0)
 
     u,z = ufl.TrialFunctions(VW)
@@ -253,7 +263,7 @@ l2_errors = [ ]
 import matplotlib.pyplot as plt 
 #ls_mesh = get_mesh_hierarchy(6)
 #ls_mesh = get_mesh_hierarchy(6)
-ls_mesh = get_mesh_hierarchy_nonconvex(7)
+ls_mesh = get_mesh_hierarchy_nonconvex(6)
 
 l2_errors_order = { }
 eoc_order = {  }
@@ -265,7 +275,8 @@ for order in [1,2,3]:
     l2_errors = [ ]
     for msh in ls_mesh[:-order]:
         #l2_error, ndof = SolveProblem(msh=msh,order=order)
-        l2_error, ndof = SolveProblem(msh=msh,order=order, export_VTK=True,sol_which=2,add_bc=False)
+        #l2_error, ndof = SolveProblem(msh=msh,order=order, export_VTK=True,sol_which=2,add_bc=True)
+        l2_error, ndof = SolveProblem(msh=msh,order=order, export_VTK=True,sol_which=1,add_bc=True)
         #l2_errors.append(SolveProblem(N_mesh=N_mesh,order=1, export_VTK=False,sol_which=2,add_bc=False))
         #l2_errors.append(SolveProblem(msh=mesh,order=1, export_VTK=False,sol_which=2,add_bc=True))
         l2_errors.append(l2_error)
