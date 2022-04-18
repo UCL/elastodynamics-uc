@@ -41,10 +41,13 @@ def get_reference_sol(type_str,kk=1):
 def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False,export_VTK=False): 
     
     h = ufl.CellDiameter(msh)
+    n = ufl.FacetNormal(msh)
     x = ufl.SpatialCoordinate(msh)
     ue = refsol(x)
 
-    Lu = lambda u : -ufl.nabla_div(2*problem.mu*epsilon(u)) - ufl.nabla_grad(problem.lam*ufl.nabla_div(u)) + problem.rho *u
+    def sigma(u):
+        return 2*problem.mu*epsilon(u) + problem.lam * ufl.nabla_div(u) * ufl.Identity(u.geometric_dimension()) 
+    Lu = lambda u : -ufl.nabla_div(sigma(u)) - problem.rho *u
     f = Lu(ue)
 
     fe  = ufl.VectorElement('CG', msh.ufl_cell(), order)
@@ -78,12 +81,12 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
         bcs.append(bc0)
 
     a = omega_ind * ufl.inner(u,v) * ufl.dx
-    a += pgamma*0.5*(h('+')+h('-'))*ufl.inner(ufl.jump(ufl.nabla_grad(u)),ufl.jump(ufl.nabla_grad(v)))*ufl.dS
+    a += pgamma*0.5*(h('+')+h('-'))*ufl.inner(ufl.jump(sigma(u),n),ufl.jump(sigma(v),n))*ufl.dS
     a += pgamma * h**2 * ufl.inner(Lu(u),Lu(v)) * ufl.dx 
     a += palpha * h**(2*order) * ufl.inner(u,v) * ufl.dx
-    a += 2 * problem.mu * ufl.inner(epsilon(v), epsilon(z)) * ufl.dx + problem.lam * ufl.inner( ufl.nabla_div(v),ufl.nabla_div(z)) * ufl.dx + problem.rho * ufl.inner(v,z) * ufl.dx
+    a += ufl.inner(sigma(v),epsilon(z)) * ufl.dx - problem.rho * ufl.inner(v,z) * ufl.dx
     a -= ufl.inner( ufl.nabla_grad(z), ufl.nabla_grad(w)) * ufl.dx 
-    a += 2 * problem.mu * ufl.inner(epsilon(u), epsilon(w)) * ufl.dx + problem.lam * ufl.inner( ufl.nabla_div(u),ufl.nabla_div(w)) * ufl.dx + problem.rho * ufl.inner(u,w) * ufl.dx
+    a += ufl.inner(sigma(u),epsilon(w)) * ufl.dx - problem.rho * ufl.inner(u,w) * ufl.dx
 
     L = ufl.inner(f, w) * ufl.dx + omega_ind * ufl.inner(ue,v) * ufl.dx  + pgamma * h**2 * ufl.inner(f,Lu(v)) * ufl.dx 
 
@@ -114,8 +117,8 @@ ls_mesh = get_mesh_hierarchy(3)
 #ls_mesh = get_mesh_hierarchy_nonconvex(4)
 #refsol = get_reference_sol("oscillatory",kk=kk)
 refsol = get_reference_sol("gaussian",kk=kk)
-#elastic_nonconvex.rho = -kk**2
-elastic_convex.rho = -kk**2
+#elastic_nonconvex.rho = kk**2
+elastic_convex.rho = kk**2
 
 for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-3)], [ ScalarType(1e-3),ScalarType(1e-1)] ):
 #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-1)], [ ScalarType(5e-3),ScalarType(5e-1)] ):

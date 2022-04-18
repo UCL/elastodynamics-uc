@@ -72,14 +72,14 @@ def B_Ind_nonconvex(x):
     return values
 
 kk = 1
-elastic_convex = elastodynamics(lam=1.25,mu=1,rho=-kk**2)
+elastic_convex = elastodynamics(lam=1.25,mu=1,rho=kk**2)
 elastic_convex.SetSubdomains(omega_Ind=omega_Ind_convex,B_Ind=B_Ind_convex)
 def boundary_indicator_unit_square(x):
     return ( np.isclose(x[0], 0.0) | np.isclose(x[0], 1.0) | np.isclose(x[1], 0.0) | np.isclose(x[1], 1.0) )
 elastic_convex.SetBoundaryIndicator(boundary_indicator_unit_square)
 
 kk = 1
-elastic_nonconvex = elastodynamics(lam=1.25,mu=1,rho=-kk**2)
+elastic_nonconvex = elastodynamics(lam=1.25,mu=1,rho=kk**2)
 elastic_nonconvex.SetSubdomains(omega_Ind=omega_Ind_nonconvex,B_Ind=B_Ind_nonconvex)
 elastic_nonconvex.SetBoundaryIndicator(boundary_indicator_unit_square)
 
