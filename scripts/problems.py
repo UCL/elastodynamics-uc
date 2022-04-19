@@ -11,6 +11,8 @@ class elastodynamics():
         self.lam = lam 
         self.mu = mu 
         self.rho = rho 
+        self.plus_Ind = None
+        self.minus_Ind = None
         #self.omega_Ind = None
         #self.B_Ind = None 
     def SetSubdomains(self,omega_Ind,B_Ind):
@@ -18,6 +20,9 @@ class elastodynamics():
         self.B_Ind = B_Ind 
     def SetBoundaryIndicator(self,bnd_Ind): 
         self.boundary_indicator = bnd_Ind
+    def SetDiscontinuityIndicators(self,plus_Ind,minus_Ind): 
+        self.plus_Ind = plus_Ind
+        self.minus_Ind = minus_Ind
 
 def omega_Ind_convex(x):
     
