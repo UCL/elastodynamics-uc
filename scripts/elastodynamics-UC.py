@@ -167,44 +167,125 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
     return error_L2,ndof 
 
 import matplotlib.pyplot as plt 
+plt.rc('legend',fontsize=14)
+plt.rc('axes',titlesize=14)
+plt.rc('axes',labelsize=14)
+plt.rc('xtick',labelsize=12)
+plt.rc('ytick',labelsize=12)
 
-def RunProblemConvexOscillatory(kk):
-    order = 2 
-    ls_mesh = get_mesh_hierarchy(3)
-    #ls_mesh = get_mesh_hierarchy_nonconvex(4)
-    refsol = get_reference_sol("oscillatory",kk=kk)
-    #refsol = get_reference_sol("gaussian",kk=kk)
-    #elastic_nonconvex.rho = kk**2
+
+def RunProblemConvexGaussian(kk):
+    orders = [1,2,3] 
+    ls_mesh = get_mesh_hierarchy(6)
+    refsol = get_reference_sol("gaussian",kk=kk)
     elastic_convex.rho = kk**2
     elastic_convex.mu = 1.0
     elastic_convex.lam = 1.25
 
-    for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-2)], [ ScalarType(1e-3),ScalarType(1e-1)] ):
+    for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-3)], [ ScalarType(1e-3),ScalarType(1e-1)] ):
     #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-1)], [ ScalarType(5e-3),ScalarType(5e-1)] ):
+        
         print("Considering {0} problem".format(problem_type))
-        l2_errors = [ ]
-        ndofs = [] 
-        for msh in ls_mesh:
-            #l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=rhs,mu_Ind = mu_Ind)
-            l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False)
-            l2_errors.append(l2_error)
-            ndofs.append(ndof)
+        l2_errors_order = { }
+        eoc_order = { }
+        h_order = { }
+        for order in orders:
+            l2_errors = [ ]
+            ndofs = [] 
+            for msh in ls_mesh[:-order]:
+                l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False)
+                l2_errors.append(l2_error)
+                ndofs.append(ndof)
 
-        eoc = [ log(l2_errors[i-1]/l2_errors[i])/log(2) for i in range(1,len(l2_errors))]
-        print("eoc = ", eoc)
-        ndofs = np.array(ndofs) 
-        h_mesh = order/ndofs**(1/2)
-        idx_start = 2 
-        rate_estimate, _ = np.polyfit(np.log(h_mesh)[idx_start:] , np.log(l2_errors)[idx_start:], 1)
-        print("(Relative) L2-error rate estimate {:.2f}".format(rate_estimate))
-        plt.loglog(h_mesh, l2_errors,'-x',label="L2-error")
-        plt.loglog(h_mesh,(l2_errors[0]/h_mesh[0])*h_mesh,label="linear",linestyle='dashed',color='gray')
-        #plt.loglog( h_mesh,(l2_errors[0]/h_mesh[0]**2)*h_mesh**2,label="quadratic",linestyle="dotted",color='gray')
-        plt.loglog(h_mesh,(l2_errors[0]/h_mesh[0]**rate_estimate)*h_mesh**rate_estimate,label="eoc={:.2f}".format(rate_estimate),linestyle='solid',color='gray')
-        plt.xlabel("~h")
+            eoc = [ log(l2_errors[i-1]/l2_errors[i])/log(2) for i in range(1,len(l2_errors))]
+            print("eoc = ", eoc)
+            ndofs = np.array(ndofs) 
+            h_mesh = order/ndofs**(1/2)
+            idx_start = 2 
+            rate_estimate, _ = np.polyfit(np.log(h_mesh)[idx_start:] , np.log(l2_errors)[idx_start:], 1)
+        
+            l2_errors_order[order] =  l2_errors 
+            h_order[order] = h_mesh
+            eoc_order[order] = round(eoc[-1],2)
+        
+        for order in [1,2,3]: 
+            plt.loglog(h_order[order], l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+            #tmp_str += ",eoc={:.2f}".format(eoc_order[order])
+        if problem_type == "well-posed":
+            for order,lstyle in zip([1,2,3],['solid','dashed','dotted']): 
+                tmp_str = "$\mathcal{{O}}(h^{0})$".format(order+1)
+                plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**(order+1))/( h_order[order][0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
+        if problem_type == "ill-posed":
+            for order,lstyle in zip([1,2],['solid','dashed','dotted']):
+                tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
+                plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**(order))/( h_order[order][0]**(order)) ,label=tmp_str,linestyle=lstyle,color='gray')
+                #aeoc = eoc_order[order]
+                #pow_a = "{:.2f}".format(order)
+                #tmp_str = "eoc = $".format(pow_a)
+                #plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**aeoc)/( h_order[order][0]**aeoc) ,label=tmp_str,linestyle=lstyle,color='gray')
+
+        plt.xlabel("h")
         plt.ylabel("L2-error")
         plt.legend()
-        plt.savefig("L2-error-elastodynamics-P{0}-{1}.png".format(order,problem_type),transparent=True,dpi=200)
+        plt.savefig("L2-error-convex-Gaussian-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
+        #plt.title("L2-error")
+        plt.show()
+
+def RunProblemConvexOscillatory(kk):
+    orders = [1,2,3] 
+    ls_mesh = get_mesh_hierarchy(6)
+    refsol = get_reference_sol("oscillatory",kk=kk)
+    elastic_convex.rho = kk**2
+    elastic_convex.mu = 1.0
+    elastic_convex.lam = 1.25
+
+    #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-2)], [ ScalarType(1e-3),ScalarType(1e-1)] ):
+    for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-2)], [ ScalarType(1e-3),ScalarType(1e+5)] ):
+        
+        print("Considering {0} problem".format(problem_type))
+        l2_errors_order = { }
+        eoc_order = { }
+        h_order = { }
+        for order in orders:
+            l2_errors = [ ]
+            ndofs = [] 
+            for msh in ls_mesh[:-order]:
+                l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False)
+                l2_errors.append(l2_error)
+                ndofs.append(ndof)
+
+            eoc = [ log(l2_errors[i-1]/l2_errors[i])/log(2) for i in range(1,len(l2_errors))]
+            print("eoc = ", eoc)
+            ndofs = np.array(ndofs) 
+            h_mesh = order/ndofs**(1/2)
+            idx_start = 2 
+            rate_estimate, _ = np.polyfit(np.log(h_mesh)[idx_start:] , np.log(l2_errors)[idx_start:], 1)
+        
+            l2_errors_order[order] =  l2_errors 
+            h_order[order] = h_mesh
+            eoc_order[order] = round(eoc[-1],2)
+        
+        for order in [1,2,3]: 
+            plt.loglog(h_order[order], l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+            #tmp_str += ",eoc={:.2f}".format(eoc_order[order])
+        if problem_type == "well-posed":
+            for order,lstyle in zip([1,2,3],['solid','dashed','dotted']): 
+                tmp_str = "$\mathcal{{O}}(h^{0})$".format(order+1)
+                plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**(order+1))/( h_order[order][0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
+        if problem_type == "ill-posed":
+            for order,lstyle in zip([1,2],['solid','dashed','dotted']):
+                tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
+                plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**(order))/( h_order[order][0]**(order)) ,label=tmp_str,linestyle=lstyle,color='gray')
+                #aeoc = eoc_order[order]
+                #pow_a = "{:.2f}".format(order)
+                #tmp_str = "eoc = $".format(pow_a)
+                #plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**aeoc)/( h_order[order][0]**aeoc) ,label=tmp_str,linestyle=lstyle,color='gray')
+
+        plt.xlabel("h")
+        plt.ylabel("L2-error")
+        plt.legend()
+        plt.savefig("L2-error-convex-oscillatory-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
+        #plt.title("L2-error")
         plt.show()
 
 
@@ -268,5 +349,52 @@ def RunProblemJump(kk=1):
         plt.savefig("L2-error-elastodynamics-P{0}-{1}.png".format(order,problem_type),transparent=True,dpi=200)
         plt.show()
 
+# Runs for draft
+#RunProblemConvexGaussian(kk=1)
+#RunProblemConvexGaussian(kk=10)
 #RunProblemConvexOscillatory(kk=10)
-RunProblemJump(kk=1)
+RunProblemConvexOscillatory(kk=10)
+
+#RunProblemJump(kk=1)
+
+
+'''
+def RunProblemConvexOscillatory(kk):
+    order = 2 
+    ls_mesh = get_mesh_hierarchy(3)
+    #ls_mesh = get_mesh_hierarchy_nonconvex(4)
+    refsol = get_reference_sol("oscillatory",kk=kk)
+    #refsol = get_reference_sol("gaussian",kk=kk)
+    #elastic_nonconvex.rho = kk**2
+    elastic_convex.rho = kk**2
+    elastic_convex.mu = 1.0
+    elastic_convex.lam = 1.25
+
+    for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-2)], [ ScalarType(1e-3),ScalarType(1e-1)] ):
+    #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-1)], [ ScalarType(5e-3),ScalarType(5e-1)] ):
+        print("Considering {0} problem".format(problem_type))
+        l2_errors = [ ]
+        ndofs = [] 
+        for msh in ls_mesh:
+            #l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=rhs,mu_Ind = mu_Ind)
+            l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False)
+            l2_errors.append(l2_error)
+            ndofs.append(ndof)
+
+        eoc = [ log(l2_errors[i-1]/l2_errors[i])/log(2) for i in range(1,len(l2_errors))]
+        print("eoc = ", eoc)
+        ndofs = np.array(ndofs) 
+        h_mesh = order/ndofs**(1/2)
+        idx_start = 2 
+        rate_estimate, _ = np.polyfit(np.log(h_mesh)[idx_start:] , np.log(l2_errors)[idx_start:], 1)
+        print("(Relative) L2-error rate estimate {:.2f}".format(rate_estimate))
+        plt.loglog(h_mesh, l2_errors,'-x',label="L2-error")
+        plt.loglog(h_mesh,(l2_errors[0]/h_mesh[0])*h_mesh,label="linear",linestyle='dashed',color='gray')
+        #plt.loglog( h_mesh,(l2_errors[0]/h_mesh[0]**2)*h_mesh**2,label="quadratic",linestyle="dotted",color='gray')
+        plt.loglog(h_mesh,(l2_errors[0]/h_mesh[0]**rate_estimate)*h_mesh**rate_estimate,label="eoc={:.2f}".format(rate_estimate),linestyle='solid',color='gray')
+        plt.xlabel("~h")
+        plt.ylabel("L2-error")
+        plt.legend()
+        plt.savefig("L2-error-elastodynamics-P{0}-{1}.png".format(order,problem_type),transparent=True,dpi=200)
+        plt.show()
+'''

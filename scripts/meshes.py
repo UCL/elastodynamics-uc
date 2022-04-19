@@ -17,6 +17,7 @@ from petsc4py.PETSc import ScalarType
 def get_mesh_hierarchy(n_ref): 
 
     gmsh.initialize()
+    gmsh.option.setNumber("Mesh.MeshSizeFactor", 2.0)
     proc = MPI.COMM_WORLD.rank
     top_marker = 2
     bottom_marker = 1
@@ -146,7 +147,7 @@ def B_Ind(x):
     # that are in each domain
     rest_coords = np.logical_and( ( x[0] >= 0.1 ), 
         np.logical_and(   (x[0] <= 0.9 ),
-          np.logical_and(   (x[1]>= 0.95),  (x[1]<= 1+tol)  )
+          np.logical_and(   (x[1]>= 0.95),  (x[1]<= 1)  )
         )
       ) 
     B_coords = np.invert(rest_coords)
