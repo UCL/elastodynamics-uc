@@ -344,15 +344,70 @@ def RunProblemNonConvexOscillatory(kk,pgamma=1e-5,palpha=1e5):
         #plt.title("L2-error")
         plt.show()
 
+def RunProblemNonConvexGaussian(kk,pgamma=1e-5,palpha=1e5):
+    orders = [1,2,3] 
+    ls_mesh = get_mesh_hierarchy_nonconvex(6)
+    refsol = get_reference_sol("gaussian",kk=kk)
+    elastic_nonconvex.rho = kk**2
+    elastic_nonconvex.mu = 1.0
+    elastic_nonconvex.lam = 1.25
+
+    for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(pgamma),ScalarType(pgamma)], [ ScalarType(palpha),ScalarType(palpha)] ):
+        
+        print("Considering {0} problem".format(problem_type))
+        l2_errors_order = { }
+        eoc_order = { }
+        h_order = { }
+        for order in orders:
+            l2_errors = [ ]
+            ndofs = [] 
+            for msh in ls_mesh[:-order]:
+                l2_error, ndof = SolveProblem(problem = elastic_nonconvex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False)
+                l2_errors.append(l2_error)
+                ndofs.append(ndof)
+
+            eoc = [ log(l2_errors[i-1]/l2_errors[i])/log(2) for i in range(1,len(l2_errors))]
+            print("eoc = ", eoc)
+            ndofs = np.array(ndofs) 
+            h_mesh = order/ndofs**(1/2)
+            idx_start = 2 
+            rate_estimate, _ = np.polyfit(np.log(h_mesh)[idx_start:] , np.log(l2_errors)[idx_start:], 1)
+        
+            l2_errors_order[order] =  l2_errors 
+            h_order[order] = h_mesh
+            eoc_order[order] = round(eoc[-1],2)
+        
+        for order in [1,2,3]: 
+            plt.loglog(h_order[order], l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+            #tmp_str += ",eoc={:.2f}".format(eoc_order[order])
+        if problem_type == "well-posed":
+            for order,lstyle in zip([1,2,3],['solid','dashed','dotted']): 
+                tmp_str = "$\mathcal{{O}}(h^{0})$".format(order+1)
+                plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**(order+1))/( h_order[order][0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
+        if problem_type == "ill-posed":
+            for order,lstyle in zip([1],['solid','dashed','dotted']):
+                tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
+                plt.loglog(h_order[order], l2_errors_order[order+2][0]*(h_order[order]**(order))/( h_order[order+2][0]**(order)) ,label=tmp_str,linestyle=lstyle,color='gray')
+                #aeoc = eoc_order[order]
+                #pow_a = "{:.2f}".format(order)
+                #tmp_str = "eoc = $".format(pow_a)
+                #plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**aeoc)/( h_order[order][0]**aeoc) ,label=tmp_str,linestyle=lstyle,color='gray')
+
+        plt.xlabel("~h")
+        plt.ylabel("L2-error")
+        plt.legend()
+        plt.savefig("L2-error-nonconvex-oscillatory-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
+        #plt.title("L2-error")
+        plt.show()
 
 
 def RunProblemJump(kk=1):
 
-    order = 2
+    order = 3
     elastic_convex.rho = kk**2
     elastic_convex.lam = 1.25
     eta = 0.6
-    ls_mesh = get_mesh_hierarchy_fitted_disc(4,eta=eta)
+    ls_mesh = get_mesh_hierarchy_fitted_disc(3,eta=eta)
     mu_plus = 2
     mu_minus = 1 
     refsol,rhs = get_reference_sol(type_str="jump",kk=kk,eta=eta,mu_plus=mu_plus,mu_minus=mu_minus,lam=elastic_convex.lam)
@@ -414,12 +469,15 @@ def RunProblemJump(kk=1):
 
 #RunProblemNonConvexOscillatory(kk=1,pgamma=1e-4,palpha=1e0)
 #RunProblemNonConvexOscillatory(kk=4,pgamma=1e-4,palpha=1e0)
-RunProblemNonConvexOscillatory(kk=4,pgamma=5e-2,palpha=1e0)
+#RunProblemNonConvexOscillatory(kk=4,pgamma=5e-2,palpha=1e0)
 
 #RunProblemNonConvexOscillatory(kk=6,pgamma=1e-1,palpha=1e3)
 
+#RunProblemNonConvexGaussian(kk=1,pgamma=1e-4,palpha=1e0)
+#RunProblemNonConvexGaussian(kk=4,pgamma=1e-4,palpha=1e0)
 
-#RunProblemJump(kk=1)
+
+RunProblemJump(kk=10)
 
 
 '''
