@@ -17,7 +17,7 @@ from problems import elastic_convex, elastic_nonconvex
 def epsilon(u):
     return ufl.sym(ufl.grad(u)) # Equivalent to 0.5*(ufl.nabla_grad(u) + ufl.nabla_grad(u).T)
 
-def get_reference_sol(type_str,kk=1,eta=0.6,mu_plus=2,mu_minus=1,lam=1.25):
+def get_reference_sol(type_str,kk=1,eta=0.6,mu_plus=2,mu_minus=1,lam=1.25,nn=5):
 
     if type_str == "oscillatory":
         def oscillatory_sol(x):
@@ -61,6 +61,11 @@ def get_reference_sol(type_str,kk=1,eta=0.6,mu_plus=2,mu_minus=1,lam=1.25):
             f2 = ufl.conditional( ufl.gt(x[1]-eta,0), f2_plus,f2_minus) 
             return ufl.as_vector([f1, f2])
         return jump_sol,jump_f
+    if type_str == "Hadamard":
+        def Hadamard_sol(x):
+            return ufl.as_vector([ ufl.sin(kk*pi*x[0]) * ufl.sinh( ufl.sqrt(nn**2-kk**2)*x[1] )/ ufl.sqrt(nn**2-kk**2) ,
+                            ufl.sin(kk*pi*x[0]) *  ufl.sinh( ufl.sqrt(nn**2-kk**2)*x[1] )/ ufl.sqrt(nn**2-kk**2)  ]  ) 
+        return Hadamard_sol
 
     else:
         print("I do not know this solution.")
@@ -156,6 +161,13 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
         L2_error = fem.form( B_ind*ufl.inner(uh - ue, uh - ue) * ufl.dx)
         error_local = fem.assemble_scalar(L2_error)
         L2_norm = fem.form( B_ind*ufl.inner(ue, ue) * ufl.dx)
+        
+        #diff = ufl.nabla_grad(ue-uh)
+        #ue_grad = ufl.nabla_grad(ue) 
+        #L2_error = fem.form( B_ind*ufl.inner( diff, diff) * ufl.dx)
+        #error_local = fem.assemble_scalar(L2_error)
+        #L2_norm = fem.form( B_ind*ufl.inner(ue_grad, ue_grad) * ufl.dx)
+        
         L2_local = fem.assemble_scalar(L2_norm)
         error_L2 = np.sqrt(msh.comm.allreduce(error_local, op=MPI.SUM)) / np.sqrt(msh.comm.allreduce(L2_local, op=MPI.SUM)) 
         print("ndof = {0}, error_L2 = {1}".format(ndof,error_L2))
@@ -238,7 +250,7 @@ def RunProblemConvexGaussian(kk):
 
 def RunProblemConvexOscillatory(kk):
     orders = [1,2,3] 
-    ls_mesh = get_mesh_hierarchy(6)
+    ls_mesh = get_mesh_hierarchy(6,init_h_scale=1.0)
     refsol = get_reference_sol("oscillatory",kk=kk)
     elastic_convex.rho = kk**2
     elastic_convex.mu = 1.0
@@ -513,24 +525,91 @@ def RunProblemJump(kk=1,apgamma=1e-1,apalpha=1e-1):
     #    plt.savefig("L2-error-elastodynamics-P{0}-{1}.png".format(order,problem_type),transparent=True,dpi=200)
     #    plt.show()
 
+
+def RunProblemConvexHadamard(kk,nn=5):
+    orders = [1,2,3] 
+    ls_mesh = get_mesh_hierarchy(6)
+    refsol = get_reference_sol("Hadamard",kk=kk,nn=nn)
+    elastic_convex.rho = kk**2
+    elastic_convex.mu = 1.0
+    elastic_convex.lam = 1.25
+
+    for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-2)], [ ScalarType(1e-3),ScalarType(1e-5)] ):
+    #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-2)], [ ScalarType(1e-3),ScalarType(1e+5)] ):
+        
+        print("Considering {0} problem".format(problem_type))
+        l2_errors_order = { }
+        eoc_order = { }
+        h_order = { }
+        for order in orders:
+            l2_errors = [ ]
+            ndofs = [] 
+            for msh in ls_mesh[:-order]:
+                l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False)
+                l2_errors.append(l2_error)
+                ndofs.append(ndof)
+
+            eoc = [ log(l2_errors[i-1]/l2_errors[i])/log(2) for i in range(1,len(l2_errors))]
+            print("eoc = ", eoc)
+            ndofs = np.array(ndofs) 
+            h_mesh = order/ndofs**(1/2)
+            idx_start = 2 
+            rate_estimate, _ = np.polyfit(np.log(h_mesh)[idx_start:] , np.log(l2_errors)[idx_start:], 1)
+        
+            l2_errors_order[order] =  l2_errors 
+            h_order[order] = h_mesh
+            eoc_order[order] = round(eoc[-1],2)
+        
+        for order in [1,2,3]: 
+            plt.loglog(h_order[order], l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+            #tmp_str += ",eoc={:.2f}".format(eoc_order[order])
+        if problem_type == "well-posed":
+            for order,lstyle in zip([1,2,3],['solid','dashed','dotted']): 
+                tmp_str = "$\mathcal{{O}}(h^{0})$".format(order+1)
+                plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**(order+1))/( h_order[order][0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
+        if problem_type == "ill-posed":
+            for order,lstyle in zip([1,2],['solid','dashed','dotted']):
+                tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
+                plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**(order))/( h_order[order][0]**(order)) ,label=tmp_str,linestyle=lstyle,color='gray')
+                #aeoc = eoc_order[order]
+                #pow_a = "{:.2f}".format(order)
+                #tmp_str = "eoc = $".format(pow_a)
+                #plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**aeoc)/( h_order[order][0]**aeoc) ,label=tmp_str,linestyle=lstyle,color='gray')
+
+        plt.xlabel("~h")
+        plt.ylabel("L2-error")
+        plt.legend()
+        plt.savefig("L2-error-convex-oscillatory-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
+        #plt.title("L2-error")
+        plt.show()
+
 # Runs for draft
 #RunProblemConvexGaussian(kk=1)
-#RunProblemConvexGaussian(kk=10)
+#RunProblemConvexGaussian(kk=6)
 #RunProblemConvexOscillatory(kk=1)
-#RunProblemConvexOscillatory(kk=10)
+#RunProblemConvexOscillatory(kk=6)
 
-#RunProblemNonConvexOscillatory(kk=1,apgamma=1e-4,apalpha=1e0)
+#RunProblemNonConvexOscillatory(kk=1,apgamma=1e-2,apalpha=1e0)
+#RunProblemNonConvexOscillatory(kk=4,apgamma=1e-2,apalpha=1e0)
+#RunProblemNonConvexOscillatory(kk=6,apgamma=1e-2,apalpha=1e0)
+
 #RunProblemNonConvexOscillatory(kk=4,apgamma=1e-4,apalpha=1e0)
 #RunProblemNonConvexOscillatory(kk=4,apgamma=5e-2,apalpha=1e0)
 #RunProblemNonConvexOscillatory(kk=6,apgamma=1e-1,apalpha=1e3)
 
 #RunProblemNonConvexGaussian(kk=1,apgamma=1e-4,apalpha=1e0)
 #RunProblemNonConvexGaussian(kk=4,apgamma=1e-4,apalpha=1e0)
+#RunProblemNonConvexGaussian(kk=6,apgamma=1e-4,apalpha=1e0)
 
-#RunProblemJump(kk=10,apgamma=1e-3,apalpha=1e-0)
-RunProblemJump(kk=1,apgamma=1e-3,apalpha=1e-0)
+#RunProblemJump(kk=8,apgamma=1e-2,apalpha=1e-0)
+#RunProblemJump(kk=1,apgamma=1e-3,apalpha=1e-0)
+RunProblemJump(kk=8,apgamma=5e-2,apalpha=1e-0)
 
 #RunProblemConvexOscillatory(kk=10)
+
+#RunProblemConvexHadamard(kk=1,nn=5)
+#RunProblemConvexHadamard(kk=10,nn=11)
+
 
 '''
 def RunProblemConvexOscillatory(kk):

@@ -14,10 +14,10 @@ from ufl import (SpatialCoordinate, TestFunction, TrialFunction,
 from mpi4py import MPI
 from petsc4py.PETSc import ScalarType
 
-def get_mesh_hierarchy(n_ref): 
+def get_mesh_hierarchy(n_ref,init_h_scale=1.0): 
 
     gmsh.initialize()
-    gmsh.option.setNumber("Mesh.MeshSizeFactor", 2.0)
+    gmsh.option.setNumber("Mesh.MeshSizeFactor", init_h_scale)
     proc = MPI.COMM_WORLD.rank
     top_marker = 2
     bottom_marker = 1
@@ -180,10 +180,10 @@ for idx,mesh in enumerate(ls_mesh):
 
 
 
-def get_mesh_hierarchy_nonconvex(n_ref): 
+def get_mesh_hierarchy_nonconvex(n_ref,init_h_scale=1.0): 
 
     gmsh.initialize()
-    gmsh.option.setNumber("Mesh.MeshSizeFactor", 2.5)
+    gmsh.option.setNumber("Mesh.MeshSizeFactor", init_h_scale )
     proc = MPI.COMM_WORLD.rank
     top_marker = 2
     bottom_marker = 1
@@ -278,7 +278,7 @@ def get_mesh_hierarchy_nonconvex(n_ref):
     return mesh_hierarchy
 
 '''
-ls_mesh = get_mesh_hierarchy_nonconvex(6)
+ls_mesh = get_mesh_hierarchy_nonconvex(5)
 
 for idx,mesh in enumerate(ls_mesh):
     with XDMFFile(mesh.comm, "mesh-nonconvex-reflvl{0}.xdmf".format(idx), "w") as file:
@@ -336,10 +336,10 @@ for idx,mesh in enumerate(ls_mesh):
         file.write_function(B_ind)
 '''
 
-def get_mesh_hierarchy_fitted_disc(n_ref,eta): 
+def get_mesh_hierarchy_fitted_disc(n_ref,eta,h_init=1.25): 
 
     gmsh.initialize()
-    gmsh.option.setNumber("Mesh.MeshSizeFactor", 2.5)
+    gmsh.option.setNumber("Mesh.MeshSizeFactor", h_init)
     proc = MPI.COMM_WORLD.rank
     bnd_marker = 1
     lower_omega_marker = 1
