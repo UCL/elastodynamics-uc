@@ -72,7 +72,7 @@ def get_reference_sol(type_str,kk=1,eta=0.6,mu_plus=2,mu_minus=1,lam=1.25,nn=5):
         return None 
 
 
-def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False,export_VTK=False,rhs=None,mu_Ind=None): 
+def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False,export_VTK=False,rhs=None,mu_Ind=None,perturb_order=None): 
     
     h = ufl.CellDiameter(msh)
     n = ufl.FacetNormal(msh)
@@ -139,7 +139,23 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
     a -= ufl.inner( ufl.nabla_grad(z), ufl.nabla_grad(w)) * ufl.dx 
     a += ufl.inner(sigma(u),epsilon(w)) * ufl.dx - problem.rho * ufl.inner(u,w) * ufl.dx
 
-    L = ufl.inner(f, w) * ufl.dx + omega_ind * ufl.inner(ue,v) * ufl.dx  + pgamma * h**2 * ufl.inner(f,Lu(v)) * ufl.dx 
+    if perturb_order!=None:
+        delta_u = fem.Function(V0)
+        delta_u.x.array[:] = np.random.rand(len(delta_u.x.array) )[:]
+        L2_delta_u = fem.form( omega_ind*ufl.inner(delta_u, delta_u) * ufl.dx)
+        L2_delta_u_local = fem.assemble_scalar(L2_delta_u) 
+        L2_norm_delta_u = np.sqrt(msh.comm.allreduce( L2_delta_u_local , op=MPI.SUM)) 
+        delta_u.x.array[:] *= 1/L2_norm_delta_u
+        #print("delta_u.x.array[:] =",delta_u.x.array[:])   
+        delta_f = fem.Function(V0)
+        delta_f.x.array[:] = np.random.rand(len(delta_f.x.array) )[:]
+        L2_delta_f = fem.form( ufl.inner(delta_f, delta_f) * ufl.dx)
+        L2_delta_f_local = fem.assemble_scalar(L2_delta_f) 
+        L2_norm_delta_f = np.sqrt(msh.comm.allreduce( L2_delta_f_local , op=MPI.SUM)) 
+        delta_f.x.array[:] *= 1/L2_norm_delta_f
+        L = ufl.inner(f+h**(perturb_order)*delta_f, w) * ufl.dx + omega_ind * ufl.inner(ue+h**(perturb_order)*delta_u,v) * ufl.dx  + pgamma * h**2 * ufl.inner(f,Lu(v)) * ufl.dx 
+    else:
+        L = ufl.inner(f, w) * ufl.dx + omega_ind * ufl.inner(ue,v) * ufl.dx  + pgamma * h**2 * ufl.inner(f,Lu(v)) * ufl.dx 
 
     prob = fem.petsc.LinearProblem(a, L, bcs=bcs, petsc_options={"ksp_type": "preonly", "pc_type": "lu"}) 
     sol = prob.solve()
@@ -191,9 +207,9 @@ plt.rc('xtick',labelsize=12)
 plt.rc('ytick',labelsize=12)
 
 
-def RunProblemConvexGaussian(kk):
+def RunProblemConvexGaussian(kk,perturb_theta=None):
     orders = [1,2,3] 
-    ls_mesh = get_mesh_hierarchy(6)
+    ls_mesh = get_mesh_hierarchy(5)
     refsol = get_reference_sol("gaussian",kk=kk)
     elastic_convex.rho = kk**2
     elastic_convex.mu = 1.0
@@ -210,7 +226,10 @@ def RunProblemConvexGaussian(kk):
             l2_errors = [ ]
             ndofs = [] 
             for msh in ls_mesh[:-order]:
-                l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False)
+                if perturb_theta!=None:
+                    l2_error, ndof = SolveProblem(problem=elastic_convex,msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,perturb_order=order+perturb_theta)
+                else:
+                    l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False)
                 l2_errors.append(l2_error)
                 ndofs.append(ndof)
 
@@ -361,9 +380,9 @@ def RunProblemNonConvexOscillatory(kk,apgamma=1e-5,apalpha=1e5):
         #plt.title("L2-error")
         plt.show()
 
-def RunProblemNonConvexGaussian(kk,apgamma=1e-5,apalpha=1e5):
+def RunProblemNonConvexGaussian(kk,apgamma=1e-5,apalpha=1e5,perturb_theta=None):
     orders = [1,2,3] 
-    ls_mesh = get_mesh_hierarchy_nonconvex(6)
+    ls_mesh = get_mesh_hierarchy_nonconvex(5)
     refsol = get_reference_sol("gaussian",kk=kk)
     elastic_nonconvex.rho = kk**2
     elastic_nonconvex.mu = 1.0
@@ -379,7 +398,10 @@ def RunProblemNonConvexGaussian(kk,apgamma=1e-5,apalpha=1e5):
             l2_errors = [ ]
             ndofs = [] 
             for msh in ls_mesh[:-order]:
-                l2_error, ndof = SolveProblem(problem = elastic_nonconvex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False)
+                if perturb_theta != None:
+                    l2_error, ndof = SolveProblem(problem=elastic_nonconvex,msh=msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,perturb_order=order+perturb_theta)
+                else:
+                    l2_error, ndof = SolveProblem(problem = elastic_nonconvex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False)
                 l2_errors.append(l2_error)
                 ndofs.append(ndof)
 
@@ -603,13 +625,18 @@ def RunProblemConvexHadamard(kk,nn=5):
 
 #RunProblemJump(kk=8,apgamma=1e-2,apalpha=1e-0)
 #RunProblemJump(kk=1,apgamma=1e-3,apalpha=1e-0)
-RunProblemJump(kk=8,apgamma=5e-2,apalpha=1e-0)
+#RunProblemJump(kk=8,apgamma=5e-2,apalpha=1e-0)
 
 #RunProblemConvexOscillatory(kk=10)
 
 #RunProblemConvexHadamard(kk=1,nn=5)
 #RunProblemConvexHadamard(kk=10,nn=11)
 
+#RunProblemConvexGaussian(kk=1)
+RunProblemConvexGaussian(kk=6,perturb_theta=-1)
+#RunProblemNonConvexGaussian(kk=6,apgamma=1e-4,apalpha=1e0,perturb_theta=-2)
+
+#RunProblemConvexOscillatory(kk=1,perturb=True)
 
 '''
 def RunProblemConvexOscillatory(kk):
