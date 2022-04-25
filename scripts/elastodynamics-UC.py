@@ -209,7 +209,7 @@ plt.rc('ytick',labelsize=12)
 
 def RunProblemConvexGaussian(kk,perturb_theta=None):
     orders = [1,2,3] 
-    ls_mesh = get_mesh_hierarchy(5)
+    ls_mesh = get_mesh_hierarchy(6)
     refsol = get_reference_sol("gaussian",kk=kk)
     elastic_convex.rho = kk**2
     elastic_convex.mu = 1.0
@@ -324,6 +324,90 @@ def RunProblemConvexOscillatory(kk):
         #plt.title("L2-error")
         plt.show()
 
+def RunProblemConvexOscillatoryKscaling():
+    orders = [1,2,3] 
+    ls_mesh = get_mesh_hierarchy(6,init_h_scale=1.0)
+    
+    elastic_convex.mu = 1.0
+    elastic_convex.lam = 1.25
+
+    msh = ls_mesh[3]
+    add_bc = True
+    problem_type = "well-posed"
+    pgamma = ScalarType(1e-5)
+    palpha = ScalarType(1e-3)
+    #kks = np.linspace(1,20,6)
+    #kks = [1+2*j for j in range(2)]
+    kks = [1+2*j for j in range(8)]
+    kks_np = np.array(kks)
+
+    l2_errors_order = { }
+    for order in orders:
+        l2_errors = [] 
+        for kk in kks:
+            print("kk = {0}".format(kk)) 
+            elastic_convex.rho = kk**2
+            refsol = get_reference_sol("oscillatory",kk=kk)
+            l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False)
+            l2_errors.append(l2_error)
+        l2_errors_order[order] = l2_errors
+
+
+    for order,lstyle in zip([1,2,3],['solid','dashed','dotted']):
+        plt.loglog(kks_np, l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+        tmp_str = "$\mathcal{{O}}(k^{0})$".format(order+1)
+        plt.loglog(kks_np, 1.35*l2_errors_order[order][0]*(kks_np**(order+1))/( kks_np[0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
+    
+    plt.xlabel("$k$")
+    plt.ylabel("L2-error")
+    plt.legend()
+    plt.savefig("L2-error-k.png",transparent=True,dpi=200)
+    #plt.title("L2-error")
+    plt.show()
+
+def RunProblemConvexGaussianKscaling():
+    orders = [1,2,3] 
+    ls_mesh = get_mesh_hierarchy(6,init_h_scale=1.0)
+    
+    elastic_convex.mu = 1.0
+    elastic_convex.lam = 1.25
+
+    msh = ls_mesh[3]
+    add_bc = True
+    problem_type = "well-posed"
+    pgamma = ScalarType(5e-3)
+    palpha = ScalarType(1e-1)
+    #kks = np.linspace(1,20,6)
+    #kks = [1+2*j for j in range(3)]
+    kks = [1+2*j for j in range(8)]
+    kks_np = np.array(kks)
+
+    l2_errors_order = { }
+    for order in orders:
+        l2_errors = [] 
+        for kk in kks:
+            print("kk = {0}".format(kk)) 
+            elastic_convex.rho = kk**2
+            refsol = get_reference_sol("gaussian",kk=kk)
+            l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False)
+            l2_errors.append(l2_error)
+        l2_errors_order[order] = l2_errors
+
+
+    for order,lstyle in zip([1,2,3],['solid','dashed','dotted']):
+        plt.loglog(kks_np, l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+        #tmp_str = "$\mathcal{{O}}(k^{0})$".format(order+1)
+        #plt.loglog(kks_np, 1.35*l2_errors_order[order][0]*(kks_np**(order+1))/( kks_np[0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
+
+    plt.loglog(kks_np, 1.35*l2_errors_order[3][0]*(kks_np)/( kks_np[0]) ,label="$\mathcal{O}(k)$",linestyle=lstyle,color='gray')
+    plt.xlabel("$k$")
+    plt.ylabel("L2-error")
+    plt.legend()
+    plt.savefig("L2-error-k-Gaussian.png",transparent=True,dpi=200)
+    #plt.title("L2-error")
+    plt.show()
+
+
 def RunProblemNonConvexOscillatory(kk,apgamma=1e-5,apalpha=1e5):
     orders = [1,2,3] 
     ls_mesh = get_mesh_hierarchy_nonconvex(6)
@@ -382,7 +466,7 @@ def RunProblemNonConvexOscillatory(kk,apgamma=1e-5,apalpha=1e5):
 
 def RunProblemNonConvexGaussian(kk,apgamma=1e-5,apalpha=1e5,perturb_theta=None):
     orders = [1,2,3] 
-    ls_mesh = get_mesh_hierarchy_nonconvex(5)
+    ls_mesh = get_mesh_hierarchy_nonconvex(6)
     refsol = get_reference_sol("gaussian",kk=kk)
     elastic_nonconvex.rho = kk**2
     elastic_nonconvex.mu = 1.0
@@ -611,6 +695,8 @@ def RunProblemConvexHadamard(kk,nn=5):
 #RunProblemConvexOscillatory(kk=1)
 #RunProblemConvexOscillatory(kk=6)
 
+
+
 #RunProblemNonConvexOscillatory(kk=1,apgamma=1e-2,apalpha=1e0)
 #RunProblemNonConvexOscillatory(kk=4,apgamma=1e-2,apalpha=1e0)
 #RunProblemNonConvexOscillatory(kk=6,apgamma=1e-2,apalpha=1e0)
@@ -618,6 +704,8 @@ def RunProblemConvexHadamard(kk,nn=5):
 #RunProblemNonConvexOscillatory(kk=4,apgamma=1e-4,apalpha=1e0)
 #RunProblemNonConvexOscillatory(kk=4,apgamma=5e-2,apalpha=1e0)
 #RunProblemNonConvexOscillatory(kk=6,apgamma=1e-1,apalpha=1e3)
+RunProblemConvexGaussianKscaling()
+#RunProblemConvexOscillatoryKscaling()
 
 #RunProblemNonConvexGaussian(kk=1,apgamma=1e-4,apalpha=1e0)
 #RunProblemNonConvexGaussian(kk=4,apgamma=1e-4,apalpha=1e0)
@@ -633,7 +721,7 @@ def RunProblemConvexHadamard(kk,nn=5):
 #RunProblemConvexHadamard(kk=10,nn=11)
 
 #RunProblemConvexGaussian(kk=1)
-RunProblemConvexGaussian(kk=6,perturb_theta=-1)
+#RunProblemConvexGaussian(kk=6,perturb_theta=-2)
 #RunProblemNonConvexGaussian(kk=6,apgamma=1e-4,apalpha=1e0,perturb_theta=-2)
 
 #RunProblemConvexOscillatory(kk=1,perturb=True)
