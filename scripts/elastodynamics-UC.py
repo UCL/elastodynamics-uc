@@ -116,8 +116,9 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
     boundary_dofs0 = fem.locate_dofs_geometrical((VW.sub(0),V0), problem.boundary_indicator )
     boundary_dofs1 = fem.locate_dofs_geometrical((VW.sub(1),W0), problem.boundary_indicator )
     
-    u_D = np.array([0,0], dtype=ScalarType)
-    bc = fem.dirichletbc( np.array([0,0], dtype=ScalarType), boundary_dofs1[0], VW.sub(1))
+    u_D = fem.Function(V0)
+    u_D.x.array[:] = 0.0
+    bc = fem.dirichletbc(u_D, boundary_dofs1, VW.sub(1))
     bcs = [bc] 
     if add_bc:
         ue_h = fem.Function(V0)
@@ -209,7 +210,7 @@ plt.rc('ytick',labelsize=12)
 
 def RunProblemConvexGaussian(kk,perturb_theta=None):
     orders = [1,2,3] 
-    ls_mesh = get_mesh_hierarchy(6)
+    ls_mesh = get_mesh_hierarchy(5)
     refsol = get_reference_sol("gaussian",kk=kk)
     elastic_convex.rho = kk**2
     elastic_convex.mu = 1.0
@@ -532,7 +533,8 @@ def RunProblemJump(kk=1,apgamma=1e-1,apalpha=1e-1):
     elastic_convex.lam = 1.25
     eta = 0.6
     ls_mesh = get_mesh_hierarchy_fitted_disc(6,eta=eta)
-    mu_plus = 2
+    #mu_plus = 2
+    mu_plus = 8
     mu_minus = 1 
     refsol,rhs = get_reference_sol(type_str="jump",kk=kk,eta=eta,mu_plus=mu_plus,mu_minus=mu_minus,lam=elastic_convex.lam)
     def mu_Ind(x):
@@ -690,7 +692,7 @@ def RunProblemConvexHadamard(kk,nn=5):
         plt.show()
 
 # Runs for draft
-#RunProblemConvexGaussian(kk=1)
+RunProblemConvexGaussian(kk=1)
 #RunProblemConvexGaussian(kk=6)
 #RunProblemConvexOscillatory(kk=1)
 #RunProblemConvexOscillatory(kk=6)
@@ -704,7 +706,7 @@ def RunProblemConvexHadamard(kk,nn=5):
 #RunProblemNonConvexOscillatory(kk=4,apgamma=1e-4,apalpha=1e0)
 #RunProblemNonConvexOscillatory(kk=4,apgamma=5e-2,apalpha=1e0)
 #RunProblemNonConvexOscillatory(kk=6,apgamma=1e-1,apalpha=1e3)
-RunProblemConvexGaussianKscaling()
+#RunProblemConvexGaussianKscaling()
 #RunProblemConvexOscillatoryKscaling()
 
 #RunProblemNonConvexGaussian(kk=1,apgamma=1e-4,apalpha=1e0)
