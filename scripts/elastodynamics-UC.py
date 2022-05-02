@@ -8,8 +8,11 @@ from mpi4py import MPI
 from dolfinx import mesh, fem, plot, io
 from petsc4py.PETSc import ScalarType
 from math import pi,log
-from meshes import get_mesh_hierarchy, get_mesh_hierarchy_nonconvex,get_mesh_hierarchy_fitted_disc
+from meshes import get_mesh_hierarchy, get_mesh_hierarchy_nonconvex,get_mesh_hierarchy_fitted_disc,get_mesh_convex,create_initial_mesh_convex
 from problems import elastic_convex, elastic_nonconvex
+
+#ds = ufl.Measure('ds', domain=domain, subdomain_data=facet_tag, metadata=metadata)
+#dS = ufl.Measure('ds', domain=domain, subdomain_data=facet_tag, metadata=metadata)
 
 #kk = 10 # wavenumber
 #order = 2
@@ -72,13 +75,33 @@ def get_reference_sol(type_str,kk=1,eta=0.6,mu_plus=2,mu_minus=1,lam=1.25,nn=5):
         return None 
 
 
-def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False,export_VTK=False,rhs=None,mu_Ind=None,perturb_order=None): 
-    
+def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False,export_VTK=False,rhs=None,mu_Ind=None,perturb_order=None,pGLS=None): 
+
+    error_dict = {"L2-error-u-uh-B": None,
+                  "H1-semi-error-u-uh-B": None,
+                  "H1-semi-norm-zh-Omega": None,
+                  "Jump-uh-Ph(u)": None,
+                  "GLS-uh-Ph(u)-Omega": None,
+                  "Tikh-uh-Ph(u)-Omega": None,
+                  "L2-error-uh-Ph(u)-omega": None,
+                  "s-norm": None,
+                  "L2-error-u-uh-B-plus": None,
+                  "L2-error-u-uh-B-minus": None,
+                  "ndof": None,
+                  "hmax": None,
+                 }
+
+    if pGLS == None:
+        pGLS = pgamma 
+    #metadata = {"quadrature_degree": 10}
+    #dx = ufl.Measure("dx", domain=msh, metadata=metadata)
+    dx = ufl.dx
+
     h = ufl.CellDiameter(msh)
     n = ufl.FacetNormal(msh)
     x = ufl.SpatialCoordinate(msh)
     ue = refsol(x)
-    
+     
     fe  = ufl.VectorElement('CG', msh.ufl_cell(), order)
     mel = ufl.MixedElement([fe,fe])
     VW = fem.FunctionSpace(msh,mel)
@@ -110,19 +133,22 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
         f = Lu(ue)
 
     fdim = msh.topology.dim - 1
-    V0, submap = VW.sub(0).collapse()
+    V0, V0_to_VW = VW.sub(0).collapse()
     W0, submap = VW.sub(1).collapse()
     # determine boundary DOFs
     boundary_dofs0 = fem.locate_dofs_geometrical((VW.sub(0),V0), problem.boundary_indicator )
     boundary_dofs1 = fem.locate_dofs_geometrical((VW.sub(1),W0), problem.boundary_indicator )
     
-    u_D = np.array([0,0], dtype=ScalarType)
-    bc = fem.dirichletbc( np.array([0,0], dtype=ScalarType), boundary_dofs1[0], VW.sub(1))
+    u_D = fem.Function(V0)
+    u_D.x.array[:] = 0.0
+    bc = fem.dirichletbc(u_D, boundary_dofs1, VW.sub(1))
     bcs = [bc] 
+    ue_h = fem.Function(V0)
+    u_expr = fem.Expression(ue, V0.element.interpolation_points)
+    ue_h.interpolate(u_expr)
+    #print(" ue_h.x.array[:] = ", ue_h.x.array[:]  )
+    Phu = ue_h
     if add_bc:
-        ue_h = fem.Function(V0)
-        u_expr = fem.Expression(ue, V0.element.interpolation_points)
-        ue_h.interpolate(u_expr)
         bc0 = fem.dirichletbc(ue_h, boundary_dofs0, VW.sub(0))
         bcs.append(bc0)
         if export_VTK:
@@ -130,74 +156,144 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
                 ue_h.name ="ujump"
                 xdmf.write_mesh(msh)
                 xdmf.write_function(ue_h)
-
-    a = omega_ind * ufl.inner(u,v) * ufl.dx
-    a += pgamma*0.5*(h('+')+h('-'))*ufl.inner(ufl.jump(sigma(u),n),ufl.jump(sigma(v),n))*ufl.dS
-    a += pgamma * h**2 * ufl.inner(Lu(u),Lu(v)) * ufl.dx 
-    a += palpha * h**(2*order) * ufl.inner(u,v) * ufl.dx
-    a += ufl.inner(sigma(v),epsilon(z)) * ufl.dx - problem.rho * ufl.inner(v,z) * ufl.dx
-    a -= ufl.inner( ufl.nabla_grad(z), ufl.nabla_grad(w)) * ufl.dx 
-    a += ufl.inner(sigma(u),epsilon(w)) * ufl.dx - problem.rho * ufl.inner(u,w) * ufl.dx
+    
+    #px = pgamma*1000
+    #px = pgamma
+    a = omega_ind * ufl.inner(u,v) * dx
+    #a +=  pgamma*order**2*0.5*(h('+')+h('-'))*ufl.inner(ufl.jump(sigma(u),n),ufl.jump(sigma(v),n))*ufl.dS
+    a +=  pgamma*0.5*(h('+')+h('-'))*ufl.inner(ufl.jump(sigma(u),n),ufl.jump(sigma(v),n))*ufl.dS
+    #a += pgamma * h**2 * ufl.inner(Lu(u),Lu(v)) * ufl.dx 
+    a += pGLS * h**2 * ufl.inner(Lu(u),Lu(v)) * dx 
+    a += palpha * h**(2*order) * ufl.inner(u,v) * dx
+    #a += palpha * h**(2*order) * ufl.inner(ufl.nabla_grad(u),ufl.nabla_grad(v)) * ufl.dx
+    a += ufl.inner(sigma(v),epsilon(z)) * ufl.dx - problem.rho * ufl.inner(v,z) * dx
+    a -= ufl.inner( ufl.nabla_grad(z), ufl.nabla_grad(w)) * dx 
+    a += ufl.inner(sigma(u),epsilon(w)) * ufl.dx - problem.rho * ufl.inner(u,w) * dx
 
     if perturb_order!=None:
         delta_u = fem.Function(V0)
         delta_u.x.array[:] = np.random.rand(len(delta_u.x.array) )[:]
-        L2_delta_u = fem.form( omega_ind*ufl.inner(delta_u, delta_u) * ufl.dx)
+        L2_delta_u = fem.form( omega_ind*ufl.inner(delta_u, delta_u) * dx)
         L2_delta_u_local = fem.assemble_scalar(L2_delta_u) 
         L2_norm_delta_u = np.sqrt(msh.comm.allreduce( L2_delta_u_local , op=MPI.SUM)) 
         delta_u.x.array[:] *= 1/L2_norm_delta_u
         #print("delta_u.x.array[:] =",delta_u.x.array[:])   
         delta_f = fem.Function(V0)
         delta_f.x.array[:] = np.random.rand(len(delta_f.x.array) )[:]
-        L2_delta_f = fem.form( ufl.inner(delta_f, delta_f) * ufl.dx)
+        L2_delta_f = fem.form( ufl.inner(delta_f, delta_f) * dx)
         L2_delta_f_local = fem.assemble_scalar(L2_delta_f) 
         L2_norm_delta_f = np.sqrt(msh.comm.allreduce( L2_delta_f_local , op=MPI.SUM)) 
         delta_f.x.array[:] *= 1/L2_norm_delta_f
-        L = ufl.inner(f+h**(perturb_order)*delta_f, w) * ufl.dx + omega_ind * ufl.inner(ue+h**(perturb_order)*delta_u,v) * ufl.dx  + pgamma * h**2 * ufl.inner(f,Lu(v)) * ufl.dx 
+        L = ufl.inner(f+h**(perturb_order)*delta_f, w) * dx + omega_ind * ufl.inner(ue+h**(perturb_order)*delta_u,v) * dx  + pGLS * h**2 * ufl.inner(f,Lu(v)) * dx 
     else:
-        L = ufl.inner(f, w) * ufl.dx + omega_ind * ufl.inner(ue,v) * ufl.dx  + pgamma * h**2 * ufl.inner(f,Lu(v)) * ufl.dx 
+        #L = ufl.inner(f, w) * ufl.dx + omega_ind * ufl.inner(ue,v) * ufl.dx  + pgamma * h**2 * ufl.inner(f,Lu(v)) * ufl.dx 
+        L = ufl.inner(f, w) * dx + omega_ind * ufl.inner(ue,v) * dx  + pGLS * h**2 * ufl.inner(f,Lu(v)) * dx 
 
-    prob = fem.petsc.LinearProblem(a, L, bcs=bcs, petsc_options={"ksp_type": "preonly", "pc_type": "lu"}) 
+    prob = fem.petsc.LinearProblem(a, L, bcs=bcs, petsc_options={"ksp_type": "preonly", "pc_type": "lu","pc_factor_mat_solver_type":"superlu" }) 
     sol = prob.solve()
     uh,zh = sol.split() 
-
-    if problem.plus_Ind:
-        #print("Measuring subdomain error separately.")
-        L2_error_upper =  fem.form(  plus_ind * (B_ind)*ufl.inner(uh - ue, uh - ue) * ufl.dx)
-        L2_norm_upper = fem.form( plus_ind * (B_ind)*ufl.inner(ue, ue) * ufl.dx)
-        L2_error_lower =  fem.form(  minus_ind * (B_ind)*ufl.inner(uh - ue, uh - ue) * ufl.dx)
-        L2_norm_lower = fem.form( minus_ind * (B_ind)*ufl.inner(ue, ue) * ufl.dx)
-        L2_local_upper = fem.assemble_scalar(L2_norm_upper)
-        L2_local_lower = fem.assemble_scalar(L2_norm_lower)
-        error_local_upper = fem.assemble_scalar(L2_error_upper)
-        error_local_lower = fem.assemble_scalar(L2_error_lower)
-        error_L2 =  np.sqrt( msh.comm.allreduce(error_local_upper, op=MPI.SUM) + msh.comm.allreduce(error_local_lower, op=MPI.SUM) ) / np.sqrt( msh.comm.allreduce(L2_local_upper, op=MPI.SUM)+ msh.comm.allreduce(L2_local_lower, op=MPI.SUM)  ) 
-        print("ndof = {0}, error_L2 = {1} ".format(ndof,error_L2)) 
-    else:
-        L2_error = fem.form( B_ind*ufl.inner(uh - ue, uh - ue) * ufl.dx)
-        error_local = fem.assemble_scalar(L2_error)
-        L2_norm = fem.form( B_ind*ufl.inner(ue, ue) * ufl.dx)
-        
-        #diff = ufl.nabla_grad(ue-uh)
-        #ue_grad = ufl.nabla_grad(ue) 
-        #L2_error = fem.form( B_ind*ufl.inner( diff, diff) * ufl.dx)
-        #error_local = fem.assemble_scalar(L2_error)
-        #L2_norm = fem.form( B_ind*ufl.inner(ue_grad, ue_grad) * ufl.dx)
-        
-        L2_local = fem.assemble_scalar(L2_norm)
-        error_L2 = np.sqrt(msh.comm.allreduce(error_local, op=MPI.SUM)) / np.sqrt(msh.comm.allreduce(L2_local, op=MPI.SUM)) 
-        print("ndof = {0}, error_L2 = {1}".format(ndof,error_L2))
-
     
     if export_VTK:
+        uex = fem.Function(V0)
+        u_expr = fem.Expression(ue, V0.element.interpolation_points)
+        uex.interpolate(u_expr)
+        udiff = fem.Function(V0)
+        udiff.x.array[:] = np.abs(uh.x.array[V0_to_VW] - uex.x.array)
         with io.XDMFFile(msh.comm, "deformation.xdmf", "w") as xdmf:
             uh.name ="uh"
             zh.name ="zh"
             xdmf.write_mesh(msh)
             uh.name = "Deformation"
-            xdmf.write_function(uh)
+            #xdmf.write_function(uh)
+            xdmf.write_function(udiff)
 
-    return error_L2,ndof 
+
+    # Postprocessing: measure errors #
+    
+    # workaround for 4.,5. and 6. as we cannot use uh and Phu in form together (dof map)
+    uh_V0 = fem.Function(V0)
+    uh_V0.x.array[:] = uh.x.array[V0_to_VW] 
+    
+    # 1. L2-error-u-uh-B 
+    L2_error_B = fem.form( B_ind*ufl.inner(uh - ue, uh - ue) * dx)
+    error_local = fem.assemble_scalar(L2_error_B)
+    L2_norm = fem.form( B_ind*ufl.inner(ue, ue) * dx) 
+    L2_local = fem.assemble_scalar(L2_norm)
+    error_L2 = np.sqrt(msh.comm.allreduce(error_local, op=MPI.SUM)) / np.sqrt(msh.comm.allreduce(L2_local, op=MPI.SUM)) 
+    error_dict["L2-error-u-uh-B"] = error_L2 
+
+    # 2. H1-semi-error-u-uh-B
+    diff = ufl.nabla_grad(ue-uh)
+    ue_grad = ufl.nabla_grad(ue)
+    error_local_H1 = fem.form( B_ind*ufl.inner( diff, diff) * ufl.dx)
+    H1_semi_norm_local = fem.form( B_ind*ufl.inner(ue_grad, ue_grad) * dx) 
+    H1_semi_error = np.sqrt(msh.comm.allreduce(fem.assemble_scalar(error_local_H1), op=MPI.SUM)) / np.sqrt(msh.comm.allreduce(fem.assemble_scalar(H1_semi_norm_local), op=MPI.SUM))  
+    error_dict["H1-semi-error-u-uh-B"] = H1_semi_error
+
+    # 3. H1-semi-norm-zh-Omega
+    zh_grad = ufl.nabla_grad(zh)
+    H1_semi_norm_zh_local = fem.form( ufl.inner(zh_grad, zh_grad) * dx) 
+    H1_semi_norm_zh = np.sqrt(msh.comm.allreduce(fem.assemble_scalar(H1_semi_norm_zh_local), op=MPI.SUM))
+    error_dict["H1-semi-norm-zh-Omega"] = H1_semi_norm_zh 
+    #print("ndof = {0}, error_L2 = {1}".format(ndof,error_L2))
+
+    # 4. Jump-uh-Ph(u) 
+    jump_error_local = fem.form( pgamma*0.5*(h('+')+h('-'))*ufl.inner(ufl.jump(sigma(uh_V0-Phu),n),ufl.jump(sigma(uh_V0-Phu),n))*ufl.dS )
+    jump_error = np.sqrt(msh.comm.allreduce(fem.assemble_scalar(jump_error_local), op=MPI.SUM))
+    error_dict["Jump-uh-Ph(u)"] = jump_error 
+
+    # 5. GLS-uh-Ph(u)-Omega
+    #GLS_error_local = fem.form(pGLS *  ufl.inner( Lu(uh)-Lu(Phu), Lu(uh)-Lu(Phu) ) * dx)
+    GLS_error_local = fem.form(pGLS * h**2 *  ufl.inner( Lu(uh_V0)-Lu(Phu), Lu(uh_V0) -Lu(Phu) ) * dx)
+    #GLS_error_local = fem.form(pGLS *  ufl.inner( Lu(Phu)-Lu(ue), Lu(Phu)-Lu(ue) ) * dx)
+    #GLS_error_local = fem.form(pGLS *  ufl.inner( Lu(uh)-Lu(ue), Lu(uh)-Lu(ue) ) * dx)
+    GLS_error = np.sqrt(msh.comm.allreduce(fem.assemble_scalar(GLS_error_local), op=MPI.SUM))
+    error_dict["GLS-uh-Ph(u)-Omega"] = GLS_error 
+
+    # 6. Tikh-uh-Ph(u)-Omega 
+    Tikh_error_local = fem.form( palpha * h**(2*order) * ufl.inner(uh_V0-Phu,uh_V0-Phu) * dx )
+    Tikh_error = np.sqrt(msh.comm.allreduce(fem.assemble_scalar(Tikh_error_local), op=MPI.SUM))
+    error_dict["Tikh-uh-Ph(u)-Omega"] = Tikh_error 
+
+    # 7. L2-error-uh-Ph(u)-omega
+    L2_error_omega_local = fem.form( omega_ind * ufl.inner(uh_V0 - Phu, uh_V0 - Phu) * dx ) 
+    L2_error_omega = np.sqrt(msh.comm.allreduce(fem.assemble_scalar(L2_error_omega_local), op=MPI.SUM))
+    error_dict["L2-error-uh-Ph(u)-omega"] = L2_error_omega 
+
+    # 8. s-norm 
+    error_dict["s-norm"] = np.sqrt( error_dict["Jump-uh-Ph(u)"]**2 + error_dict["GLS-uh-Ph(u)-Omega"]**2 
+                                    + error_dict["Tikh-uh-Ph(u)-Omega"]**2 + error_dict["L2-error-uh-Ph(u)-omega"]**2 
+                                    + error_dict["H1-semi-norm-zh-Omega"]**2 )
+    # 9. ndofs
+    error_dict["ndof"] = ndof
+    
+    # 10. h (proportional)
+    error_dict["hmax"] = order/np.array(ndof)**(1/2) 
+    error_dict["ndof"] = 2*np.array(error_dict["ndof"])
+
+    if problem.plus_Ind:
+        #print("Measuring subdomain error separately.")
+        L2_error_upper =  fem.form(  plus_ind * (B_ind)*ufl.inner(uh - ue, uh - ue) * dx)
+        L2_norm_upper = fem.form( plus_ind * (B_ind)*ufl.inner(ue, ue) * dx)
+        L2_error_lower =  fem.form(  minus_ind * (B_ind)*ufl.inner(uh - ue, uh - ue) * dx)
+        L2_norm_lower = fem.form( minus_ind * (B_ind)*ufl.inner(ue, ue) * dx)
+        L2_local_upper = fem.assemble_scalar(L2_norm_upper)
+        L2_local_lower = fem.assemble_scalar(L2_norm_lower)
+        error_local_upper = fem.assemble_scalar(L2_error_upper)
+        error_local_lower = fem.assemble_scalar(L2_error_lower)
+        error_rel_upper = np.sqrt( msh.comm.allreduce(error_local_upper, op=MPI.SUM)) / np.sqrt( msh.comm.allreduce(L2_local_upper, op=MPI.SUM) )  
+        error_rel_lower = np.sqrt(  msh.comm.allreduce(error_local_lower, op=MPI.SUM) ) / np.sqrt( msh.comm.allreduce(L2_local_lower, op=MPI.SUM)    ) 
+        error_L2 =  np.sqrt( msh.comm.allreduce(error_local_upper, op=MPI.SUM) + msh.comm.allreduce(error_local_lower, op=MPI.SUM) ) / np.sqrt( msh.comm.allreduce(L2_local_upper, op=MPI.SUM)+ msh.comm.allreduce(L2_local_lower, op=MPI.SUM)  ) 
+        #print("ndof = {0}, error_upper = {1}, error_lower={2} ".format(ndof, error_rel_upper, error_rel_lower   )) 
+        error_dict["L2-error-u-uh-B-plus"] = error_rel_upper  
+        error_dict["L2-error-u-uh-B-minus"] = error_rel_lower 
+        error_dict["L2-error-u-uh-B"] = error_L2 
+    
+    return error_dict
+    #return  H1_semi_error,ndof 
+    #return unnormalized_L2,ndof 
+    #return  reliable_L2,ndof 
+    #return error_L2,ndof 
 
 import matplotlib.pyplot as plt 
 plt.rc('legend',fontsize=14)
@@ -205,6 +301,140 @@ plt.rc('axes',titlesize=14)
 plt.rc('axes',labelsize=14)
 plt.rc('xtick',labelsize=12)
 plt.rc('ytick',labelsize=12)
+
+
+
+def ConvergenceStudy(problem,ls_mesh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=None,name_str="dummy.txt"):
+    errors = { "L2-error-u-uh-B": [],
+               "H1-semi-error-u-uh-B": [],
+               "H1-semi-norm-zh-Omega": [],
+               "Jump-uh-Ph(u)": [],
+               "GLS-uh-Ph(u)-Omega": [],
+               "Tikh-uh-Ph(u)-Omega": [],
+               "s-norm": [],
+               "L2-error-uh-Ph(u)-omega": [],
+               "L2-error-u-uh-B-plus": [],
+               "L2-error-u-uh-B-minus": [],
+               "ndof": [],
+               "hmax":[],
+               "reflvl":[]
+             }
+
+    for msh in ls_mesh:
+        if perturb_theta!=None:
+            errors_msh = SolveProblem(problem = problem, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,perturb_order=order+perturb_theta,pGLS=pGLS)
+        else:
+            errors_msh = SolveProblem(problem = problem, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=order==2,pGLS=pGLS)
+        print("ndof = {0}, L2-error-u-uh-B = {1}".format(errors_msh["ndof"],errors_msh["L2-error-u-uh-B"])) 
+        for error_type in errors_msh:
+            errors[error_type].append(errors_msh[error_type])
+    
+    # 11 reflvl 
+    errors["reflvl"] = range(len(errors["hmax"])) 
+    
+    #results = [np.array(errors_msh["ndof"]]
+    #header_str = "ndofs "
+    results = []
+    header_str = ""
+    for error_type in errors:
+        if errors[error_type][0] != None: 
+            print(errors[error_type]) 
+            results.append(np.array(errors[error_type],dtype=float))
+            header_str += "{0} ".format(error_type)
+    np.savetxt(fname ="../data/{0}".format(name_str),
+               X = np.transpose(results),
+               header = header_str,
+               comments = '')
+
+    return errors 
+
+
+def RunProblemConvexGaussian2(kk,perturb_theta=None):
+    orders = [1,2,3] 
+    ls_mesh = get_mesh_hierarchy(5)
+    refsol = get_reference_sol("gaussian",kk=kk)
+    elastic_convex.rho = kk**2
+    elastic_convex.mu = 1.0
+    elastic_convex.lam = 1.25
+
+    for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(5e-3)/kk**2,ScalarType(5e-3)/kk**2], [ ScalarType(1e-2),ScalarType(1e-2)]):
+        print("Considering {0} problem".format(problem_type))
+        for order in orders:
+            name_str = "Convex-Gaussian-{0}-k{1}-order{2}.dat".format(problem_type,kk,order)
+            #print(name_str)
+            print("Computing for order = {0}".format(order))
+            errors_order = ConvergenceStudy(elastic_convex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma/order**2,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=5e-3/kk**4,name_str = name_str)
+            print(errors_order)
+            
+            eoc = [ log(errors_order["s-norm"][i-1]/errors_order["s-norm"][i])/log(2) for i in range(1,len(errors_order["s-norm"]))]
+            print("eoc = ", eoc)
+            ndofs = np.array(errors_order["ndof"]) 
+            h_order = order/ndofs**(1/2) 
+            plt.loglog(h_order, errors_order["s-norm"] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+            tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
+            plt.loglog(h_order, h_order**order,label=tmp_str,linestyle='dashed',color='gray')
+            plt.xlabel("h")
+            plt.legend()
+            #plt.savefig("L2-error-convex-Gaussian-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
+            #plt.title("L2-error")
+            plt.show()
+            
+            for error_str in ["Jump-uh-Ph(u)","GLS-uh-Ph(u)-Omega","Tikh-uh-Ph(u)-Omega","L2-error-uh-Ph(u)-omega","s-norm"]:
+                #print(error_str)
+                eoc = [ log(errors_order[error_str][i-1]/errors_order[error_str][i])/log(2) for i in range(1,len(errors_order[error_str]))]
+                print("{0}, eoc = {1}".format(error_str,eoc))
+                error_vals =  errors_order[error_str]
+                plt.loglog(h_order, error_vals ,'-x',label="{0}".format(error_str),linewidth=3,markersize=8)
+            plt.loglog(h_order, h_order**order ,label=tmp_str,linestyle='dashed',color='gray')
+            plt.xlabel("h")
+            plt.legend()
+            plt.show()
+
+
+def RunProblemNonConvexOscillatory2(kk,perturb_theta=None):
+    
+    orders = [1,2,3] 
+    ls_mesh = get_mesh_hierarchy_nonconvex(5)
+    refsol = get_reference_sol("oscillatory",kk=kk)
+    elastic_nonconvex.rho = kk**2
+    elastic_nonconvex.mu = 1.0
+    elastic_nonconvex.lam = 1.25
+
+
+    for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5)/kk**2,ScalarType(1e-5)/kk**2], [ ScalarType(1e-2),ScalarType(1e-2)]):
+        print("Considering {0} problem".format(problem_type))
+        for order in orders:
+            name_str = "Non-Convex-Oscillatory-{0}-k{1}-order{2}.dat".format(problem_type,kk,order)
+            #print(name_str)
+            print("Computing for order = {0}".format(order))
+            errors_order = ConvergenceStudy(elastic_nonconvex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma/order**2,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-5/kk**4,name_str = name_str)
+            print(errors_order)
+            
+            eoc = [ log(errors_order["L2-error-u-uh-B"][i-1]/errors_order["L2-error-u-uh-B"][i])/log(2) for i in range(1,len(errors_order["L2-error-u-uh-B"]))]
+            print("eoc = ", eoc)
+            ndofs = np.array(errors_order["ndof"]) 
+            h_order = order/ndofs**(1/2) 
+            plt.loglog(h_order, errors_order["L2-error-u-uh-B"] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+            tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
+            plt.loglog(h_order, h_order**order,label=tmp_str,linestyle='dashed',color='gray')
+            plt.xlabel("h")
+            plt.legend()
+            #plt.savefig("L2-error-convex-Gaussian-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
+            #plt.title("L2-error")
+            plt.show()
+            
+            for error_str in ["Jump-uh-Ph(u)","GLS-uh-Ph(u)-Omega","Tikh-uh-Ph(u)-Omega","L2-error-uh-Ph(u)-omega","s-norm"]:
+                #print(error_str)
+                eoc = [ log(errors_order[error_str][i-1]/errors_order[error_str][i])/log(2) for i in range(1,len(errors_order[error_str]))]
+                print("{0}, eoc = {1}".format(error_str,eoc))
+                error_vals =  errors_order[error_str]
+                plt.loglog(h_order, error_vals ,'-x',label="{0}".format(error_str),linewidth=3,markersize=8)
+            plt.loglog(h_order, h_order**order ,label=tmp_str,linestyle='dashed',color='gray')
+            plt.xlabel("h")
+            plt.legend()
+            plt.show()
+
+
 
 
 def RunProblemConvexGaussian(kk,perturb_theta=None):
@@ -229,7 +459,7 @@ def RunProblemConvexGaussian(kk,perturb_theta=None):
                 if perturb_theta!=None:
                     l2_error, ndof = SolveProblem(problem=elastic_convex,msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,perturb_order=order+perturb_theta)
                 else:
-                    l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False)
+                    l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=order==2)
                 l2_errors.append(l2_error)
                 ndofs.append(ndof)
 
@@ -267,15 +497,25 @@ def RunProblemConvexGaussian(kk,perturb_theta=None):
         #plt.title("L2-error")
         plt.show()
 
+
+
 def RunProblemConvexOscillatory(kk):
     orders = [1,2,3] 
-    ls_mesh = get_mesh_hierarchy(6,init_h_scale=1.0)
+    ls_mesh = get_mesh_hierarchy(5,init_h_scale=1.0)
+    #ls_mesh = get_mesh_convex(6,init_h_scale=1.0)   
     refsol = get_reference_sol("oscillatory",kk=kk)
     elastic_convex.rho = kk**2
     elastic_convex.mu = 1.0
     elastic_convex.lam = 1.25
 
-    for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-2)], [ ScalarType(1e-3),ScalarType(1e-5)] ):
+    #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-2)], [ ScalarType(1e-3),ScalarType(1e-5)] ):
+    #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-3)], [ ScalarType(1e-3),ScalarType(1e-0)] ):
+    
+    #for add_bc,problem_type,pgamma,palpha,pGLS in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5/kk**2),ScalarType(1e-5/kk**2) ], 
+    #                                                 [ ScalarType(5e-1),ScalarType(5e-1)],[ ScalarType(1e-4/kk**4),ScalarType(1e-4/kk**4)] ):
+    for add_bc,problem_type,pgamma,palpha,pGLS in zip([False],["ill-posed"],[ ScalarType(3e-4/kk**2) ], 
+                                                     [ScalarType(1e-2)],[ScalarType(1e-4/kk**4)] ):
+    
     #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-2)], [ ScalarType(1e-3),ScalarType(1e+5)] ):
         
         print("Considering {0} problem".format(problem_type))
@@ -286,7 +526,7 @@ def RunProblemConvexOscillatory(kk):
             l2_errors = [ ]
             ndofs = [] 
             for msh in ls_mesh[:-order]:
-                l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False)
+                l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma/order**2,palpha=palpha,add_bc=add_bc,export_VTK=order==2,pGLS=pGLS)
                 l2_errors.append(l2_error)
                 ndofs.append(ndof)
 
@@ -324,15 +564,100 @@ def RunProblemConvexOscillatory(kk):
         #plt.title("L2-error")
         plt.show()
 
+def RunProblemConvexOscillatoryKscaling():
+    orders = [1,2,3] 
+    ls_mesh = get_mesh_hierarchy(6,init_h_scale=1.0)
+    
+    elastic_convex.mu = 1.0
+    elastic_convex.lam = 1.25
+
+    msh = ls_mesh[3]
+    add_bc = True
+    problem_type = "well-posed"
+    pgamma = ScalarType(1e-5)
+    palpha = ScalarType(1e-3)
+    #kks = np.linspace(1,20,6)
+    #kks = [1+2*j for j in range(2)]
+    kks = [1+2*j for j in range(8)]
+    kks_np = np.array(kks)
+
+    l2_errors_order = { }
+    for order in orders:
+        l2_errors = [] 
+        for kk in kks:
+            print("kk = {0}".format(kk)) 
+            elastic_convex.rho = kk**2
+            refsol = get_reference_sol("oscillatory",kk=kk)
+            l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False)
+            l2_errors.append(l2_error)
+        l2_errors_order[order] = l2_errors
+
+
+    for order,lstyle in zip([1,2,3],['solid','dashed','dotted']):
+        plt.loglog(kks_np, l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+        tmp_str = "$\mathcal{{O}}(k^{0})$".format(order+1)
+        plt.loglog(kks_np, 1.35*l2_errors_order[order][0]*(kks_np**(order+1))/( kks_np[0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
+    
+    plt.xlabel("$k$")
+    plt.ylabel("L2-error")
+    plt.legend()
+    plt.savefig("L2-error-k.png",transparent=True,dpi=200)
+    #plt.title("L2-error")
+    plt.show()
+
+def RunProblemConvexGaussianKscaling():
+    orders = [1,2,3] 
+    ls_mesh = get_mesh_hierarchy(6,init_h_scale=1.0)
+    
+    elastic_convex.mu = 1.0
+    elastic_convex.lam = 1.25
+
+    msh = ls_mesh[3]
+    add_bc = True
+    problem_type = "well-posed"
+    pgamma = ScalarType(5e-3)
+    palpha = ScalarType(1e-1)
+    #kks = np.linspace(1,20,6)
+    #kks = [1+2*j for j in range(3)]
+    kks = [1+2*j for j in range(8)]
+    kks_np = np.array(kks)
+
+    l2_errors_order = { }
+    for order in orders:
+        l2_errors = [] 
+        for kk in kks:
+            print("kk = {0}".format(kk)) 
+            elastic_convex.rho = kk**2
+            refsol = get_reference_sol("gaussian",kk=kk)
+            l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False)
+            l2_errors.append(l2_error)
+        l2_errors_order[order] = l2_errors
+
+
+    for order,lstyle in zip([1,2,3],['solid','dashed','dotted']):
+        plt.loglog(kks_np, l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+        #tmp_str = "$\mathcal{{O}}(k^{0})$".format(order+1)
+        #plt.loglog(kks_np, 1.35*l2_errors_order[order][0]*(kks_np**(order+1))/( kks_np[0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
+
+    plt.loglog(kks_np, 1.35*l2_errors_order[3][0]*(kks_np)/( kks_np[0]) ,label="$\mathcal{O}(k)$",linestyle=lstyle,color='gray')
+    plt.xlabel("$k$")
+    plt.ylabel("L2-error")
+    plt.legend()
+    plt.savefig("L2-error-k-Gaussian.png",transparent=True,dpi=200)
+    #plt.title("L2-error")
+    plt.show()
+
+
 def RunProblemNonConvexOscillatory(kk,apgamma=1e-5,apalpha=1e5):
     orders = [1,2,3] 
-    ls_mesh = get_mesh_hierarchy_nonconvex(6)
+    ls_mesh = get_mesh_hierarchy_nonconvex(5)
     refsol = get_reference_sol("oscillatory",kk=kk)
     elastic_nonconvex.rho = kk**2
     elastic_nonconvex.mu = 1.0
     elastic_nonconvex.lam = 1.25
 
-    for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(apgamma),ScalarType(apgamma)], [ ScalarType(apalpha),ScalarType(apalpha)] ):
+    #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(apgamma),ScalarType(apgamma/kk**2)], [ ScalarType(apalpha),ScalarType(apalpha)] ):
+    for add_bc,problem_type,pgamma,palpha in zip([False],["ill-posed"],[ScalarType(apgamma/kk**2)], [ ScalarType(apalpha)] ):
         
         print("Considering {0} problem".format(problem_type))
         l2_errors_order = { }
@@ -342,7 +667,7 @@ def RunProblemNonConvexOscillatory(kk,apgamma=1e-5,apalpha=1e5):
             l2_errors = [ ]
             ndofs = [] 
             for msh in ls_mesh[:-order]:
-                l2_error, ndof = SolveProblem(problem = elastic_nonconvex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False)
+                l2_error, ndof = SolveProblem(problem = elastic_nonconvex, msh = msh,refsol=refsol,order=order,pgamma=pgamma/order**2,palpha=palpha,add_bc=add_bc,export_VTK=False,pGLS=1e-5/kk**4)
                 l2_errors.append(l2_error)
                 ndofs.append(ndof)
 
@@ -382,7 +707,7 @@ def RunProblemNonConvexOscillatory(kk,apgamma=1e-5,apalpha=1e5):
 
 def RunProblemNonConvexGaussian(kk,apgamma=1e-5,apalpha=1e5,perturb_theta=None):
     orders = [1,2,3] 
-    ls_mesh = get_mesh_hierarchy_nonconvex(5)
+    ls_mesh = get_mesh_hierarchy_nonconvex(6)
     refsol = get_reference_sol("gaussian",kk=kk)
     elastic_nonconvex.rho = kk**2
     elastic_nonconvex.mu = 1.0
@@ -442,14 +767,33 @@ def RunProblemNonConvexGaussian(kk,apgamma=1e-5,apalpha=1e5,perturb_theta=None):
 
 def RunProblemJump(kk=1,apgamma=1e-1,apalpha=1e-1):
 
+    
+    eta = 0.6
+    
+    def omega_Ind_eta(x):
+        
+        values = np.zeros(x.shape[1],dtype=ScalarType)
+        omega_coords = np.logical_or(  np.logical_and(  x[0] <= 0.1 , x[1] <=eta  ) , 
+            np.logical_or(  np.logical_and( x[0] >= 0.9 , x[1] <= eta  ) , (x[1] <= 0.25)  )
+            ) 
+        #omega_coords = np.logical_or(   ( x[0] <= 0.1 )  , 
+        #    np.logical_or(   (x[0] >= 0.9 ), (x[1] <= 0.25)  )
+        #    ) 
+        rest_coords = np.invert(omega_coords)
+        values[omega_coords] = np.full(sum(omega_coords), 1.0)
+        values[rest_coords] = np.full(sum(rest_coords), 0)
+        return values
+
+    elastic_convex.SetSubdomains(omega_Ind=omega_Ind_eta,B_Ind=elastic_convex.B_Ind)
+    
     orders = [1,2,3] 
     #order = 3
     elastic_convex.rho = kk**2
     elastic_convex.lam = 1.25
-    eta = 0.6
-    ls_mesh = get_mesh_hierarchy_fitted_disc(6,eta=eta)
-    mu_plus = 2
-    mu_minus = 1 
+    ls_mesh = get_mesh_hierarchy_fitted_disc(5,eta=eta)
+    mu_plus = 4
+    #mu_plus = 1
+    mu_minus = 1
     refsol,rhs = get_reference_sol(type_str="jump",kk=kk,eta=eta,mu_plus=mu_plus,mu_minus=mu_minus,lam=elastic_convex.lam)
     def mu_Ind(x):
         values = np.zeros(x.shape[1],dtype=ScalarType)
@@ -474,7 +818,8 @@ def RunProblemJump(kk=1,apgamma=1e-1,apalpha=1e-1):
         return values
     elastic_convex.SetDiscontinuityIndicators(plus_Ind=plus_Ind,minus_Ind=minus_Ind)
 
-    for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(apgamma),ScalarType(apgamma)], [ ScalarType(apgamma),ScalarType(apgamma)] ):
+    #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(apgamma),ScalarType(apgamma)], [ ScalarType(apgamma),ScalarType(apgamma)] ):
+    for add_bc,problem_type,pgamma,palpha,pGLS in zip([False],["ill-posed"],[ ScalarType(apgamma)/ (kk**2) ] , [ ScalarType(apalpha)], [ ScalarType(1e-2/kk**4) ] ):
         
         print("Considering {0} problem".format(problem_type))
         l2_errors_order = { }
@@ -484,7 +829,7 @@ def RunProblemJump(kk=1,apgamma=1e-1,apalpha=1e-1):
             l2_errors = [ ]
             ndofs = [] 
             for msh in ls_mesh[:-order]:
-                l2_error, ndof = SolveProblem(problem=elastic_convex,msh=msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=True,rhs=rhs,mu_Ind=mu_Ind)
+                l2_error, ndof = SolveProblem(problem=elastic_convex,msh=msh,refsol=refsol,order=order,pgamma=pgamma/order**2,palpha=palpha,add_bc=add_bc,export_VTK=order==3,rhs=rhs,mu_Ind=mu_Ind,pGLS=pGLS)
                 l2_errors.append(l2_error)
                 ndofs.append(ndof)
 
@@ -605,19 +950,203 @@ def RunProblemConvexHadamard(kk,nn=5):
         #plt.title("L2-error")
         plt.show()
 
+
+
+#####################
+####################
+
+def RunProblemConvexOscillatoryKhscaling():
+    orders = [1,2] 
+    
+    ratio = 1/2
+    #kks = [1+2*j for j in range(4)]
+    kks = [1+j for j in range(8)]
+    kks_np = np.array(kks)
+    
+    meshwidths = [ ratio/kk for kk in kks   ] 
+    print("meshwidth = ", meshwidths )
+    ls_mesh = [ create_initial_mesh_convex(init_h_scale = h_k) for h_k in meshwidths ]
+    #ls_mesh = get_mesh_convex(6,init_h_scale=1.0)   
+    
+    elastic_convex.mu = 1.0
+    elastic_convex.lam = 1.25
+
+    #msh = ls_mesh[3]
+    #add_bc = True
+    #problem_type = "well-posed"
+    #pgamma = ScalarType(5e-3)
+    #palpha = ScalarType(1e-1)
+    #kks = np.linspace(1,20,6)
+    #kks = [1+2*j for j in range(3)]
+
+    
+    #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(5e-3),ScalarType(5e-3)], [ ScalarType(1e-1),ScalarType(1e-1)] ):
+    #for add_bc,problem_type,pgamma,palpha,pGLS in zip([True,False],["well-posed","ill-posed"], [ ScalarType(1e-4),ScalarType(1e-4) ], 
+    #                                                 [ ScalarType(5e-1),ScalarType(5e-1)],[ ScalarType(1e-4),ScalarType(1e-4)]   ):
+    for add_bc,problem_type,pgamma,palpha,pGLS in zip([True],["ill-posed"], [ScalarType(1e-4) ], 
+                                                     [ ScalarType(5e-1)],[ ScalarType(1e-4)]   ):
+        print("Considering {0} problem".format(problem_type))
+        l2_errors_order = { }
+        for order in orders:
+            l2_errors = [] 
+            for kk,msh in zip(kks,ls_mesh):
+                print("kk = {0}".format(kk)) 
+                elastic_convex.rho = kk**2
+                refsol = get_reference_sol("oscillatory",kk=kk)
+                l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma/(order*kk)**2,palpha=palpha,add_bc=add_bc,export_VTK=False,pGLS=pGLS/kk**4)
+                l2_errors.append(l2_error)
+            l2_errors_order[order] = l2_errors
+
+
+        for order,lstyle in zip([1,2],['solid','dashed','dotted']):
+            plt.loglog(kks_np, l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+            #tmp_str = "$\mathcal{{O}}(k^{0})$".format(order+1)
+            #plt.loglog(kks_np, 1.35*l2_errors_order[order][0]*(kks_np**(order+1))/( kks_np[0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
+
+        plt.loglog(kks_np, 1.35*l2_errors_order[2][0]*(kks_np)/( kks_np[0]) ,label="$\mathcal{O}(k)$",linestyle=lstyle,color='gray')
+        plt.xlabel("$k$")
+        plt.ylabel("L2-error")
+        plt.legend()
+        plt.savefig("L2-error-k-Gaussian.png",transparent=True,dpi=200)
+        #plt.title("L2-error")
+        plt.show()
+
+
+
+def RunProblemConvexOscillatoryStabSweep(kk):
+    
+    orders = [1,2,3]  
+    #ratio = 1/2 
+    #meshwidths = [ ratio/kk for kk in kks   ] 
+    #print("meshwidth = ", meshwidths )
+    #ls_mesh = [ create_initial_mesh_convex(init_h_scale = h_k) for h_k in meshwidths ]
+    ls_mesh = get_mesh_convex(4,init_h_scale=1.0)
+    msh = ls_mesh[2]
+    
+    elastic_convex.mu = 1.0
+    elastic_convex.lam = 1.25
+    elastic_convex.rho = kk**2
+
+    refsol = get_reference_sol("oscillatory",kk=kk)
+    #msh = ls_mesh[3]
+    add_bc = False
+    problem_type = "ill-posed"
+    #pgamma = ScalarType(5e-3)
+    palpha = ScalarType(1e-1)
+    #kks = np.linspace(1,20,6)
+    #kks = [1+2*j for j in range(3)]
+    pgammas = [1e-10,1e-9,1e-8,1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1e0,1e1,1e2,1e3]
+    pgammas_np = np.array(pgammas)
+
+
+    #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(5e-3),ScalarType(5e-3)], [ ScalarType(1e-1),ScalarType(1e-1)] ):
+    l2_errors_order = { }
+    for order in orders:
+        l2_errors = [] 
+        for pgamma in pgammas:
+            #l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=ScalarType(pgamma),palpha=palpha,add_bc=add_bc,export_VTK=False,pGLS=ScalarType( 1e-4/kk**4))
+            #l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=ScalarType(pgamma),palpha=palpha,add_bc=add_bc,export_VTK=False)
+            #l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=ScalarType(1e-4/(order*kk)**2),palpha=1e-2,add_bc=add_bc,export_VTK=False,pGLS=ScalarType( 1e-4/kk**4))
+            l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=ScalarType(pgamma),palpha=1e-2,add_bc=add_bc,export_VTK=False,pGLS=ScalarType( 1e-4/kk**4))
+            l2_errors.append(l2_error)
+        l2_errors_order[order] = l2_errors
+
+    for order,lstyle in zip([1,2,3],['solid','dashed','dotted']):
+        plt.loglog(pgammas_np, l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+        
+        #tmp_str = "$\mathcal{{O}}(k^{0})$".format(order+1)
+        #plt.loglog(kks_np, 1.35*l2_errors_order[order][0]*(kks_np**(order+1))/( kks_np[0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
+    #plt.loglog(kks_np, 1.35*l2_errors_order[2][0]*(kks_np)/( kks_np[0]) ,label="$\mathcal{O}(k)$",linestyle=lstyle,color='gray')
+    plt.xlabel("$\gamma$")
+    plt.ylabel("L2-error")
+    plt.legend()
+    plt.savefig("L2-error-stab-gamma.png",transparent=True,dpi=200)
+    #plt.title("L2-error")
+    plt.show()
+
+def RunProblemNonConvexOscillatoryStabSweep(kk):
+    
+    orders = [1,2]  
+    #orders = [1]  
+    #ratio = 1/2 
+    #meshwidths = [ ratio/kk for kk in kks   ] 
+    #print("meshwidth = ", meshwidths )
+    #ls_mesh = [ create_initial_mesh_convex(init_h_scale = h_k) for h_k in meshwidths ]
+    ls_mesh = get_mesh_convex(5,init_h_scale=1.0)
+    msh = ls_mesh[3]
+    
+    elastic_nonconvex.mu = 1.0
+    elastic_nonconvex.lam = 1.25
+    elastic_nonconvex.rho = kk**2
+
+    refsol = get_reference_sol("oscillatory",kk=kk)
+    #msh = ls_mesh[3]
+    add_bc = False
+    problem_type = "ill-posed"
+    #pgamma = ScalarType(5e-3)
+    palpha = ScalarType(1e-1)
+    #kks = np.linspace(1,20,6)
+    #kks = [1+2*j for j in range(3)]
+    #pgammas = [1e-10,1e-9,1e-8,1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1e0,1e1,1e2,1e3]
+    pgammas = [1e-10,1e-9,1e-8,1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1]
+    #pgammas = [1e-14,1e-13,1e-12,1e-11,1e-10,1e-9,1e-8,1e-7,1e-6,1e-5,1e-4]
+    #pgammas = [1e-10,1e-9,1e-8,1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1]
+    pgammas_np = np.array(pgammas)
+
+
+    #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(5e-3),ScalarType(5e-3)], [ ScalarType(1e-1),ScalarType(1e-1)] ):
+    l2_errors_order = { }
+    for order in orders:
+        l2_errors = [] 
+        for pgamma in pgammas:
+            #l2_error, ndof = SolveProblem(problem = elastic_nonconvex, msh = msh,refsol=refsol,order=order,pgamma=ScalarType(pgamma),palpha=palpha,add_bc=add_bc,export_VTK=False,pGLS=ScalarType( 1e-4/kk**4))
+            #l2_error, ndof = SolveProblem(problem = elastic_nonconvex, msh = msh,refsol=refsol,order=order,pgamma=ScalarType(pgamma),palpha=palpha,add_bc=add_bc,export_VTK=False)
+            #l2_error, ndof = SolveProblem(problem = elastic_nonconvex, msh = msh,refsol=refsol,order=order,pgamma=ScalarType(1e-4/(order*kk)**2),palpha=ScalarType(1e-1),add_bc=add_bc,export_VTK=False,pGLS=ScalarType(1e-5/kk**4 ))
+            l2_error, ndof = SolveProblem(problem = elastic_nonconvex, msh = msh,refsol=refsol,order=order,pgamma=ScalarType(pgamma),palpha=ScalarType(1e-1),add_bc=add_bc,export_VTK=False,pGLS=ScalarType(1e-5/kk**4 ))
+            l2_errors.append(l2_error)
+            # 1e-5/(order*kk)**2
+        l2_errors_order[order] = l2_errors
+
+    for order,lstyle in zip(orders,['solid','dashed','dotted']):
+        plt.loglog(pgammas_np, l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+        
+        #tmp_str = "$\mathcal{{O}}(k^{0})$".format(order+1)
+        #plt.loglog(kks_np, 1.35*l2_errors_order[order][0]*(kks_np**(order+1))/( kks_np[0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
+    #plt.loglog(kks_np, 1.35*l2_errors_order[2][0]*(kks_np)/( kks_np[0]) ,label="$\mathcal{O}(k)$",linestyle=lstyle,color='gray')
+    plt.xlabel("$\gamma$")
+    plt.ylabel("L2-error")
+    plt.legend()
+    plt.savefig("L2-error-stab-gamma.png",transparent=True,dpi=200)
+    #plt.title("L2-error")
+    plt.show()
+
+# pgamma = 1e-5/kk**2 , pGLS = 1e-4/kk**4
+
 # Runs for draft
+
+#RunProblemConvexGaussian2(kk=6,perturb_theta=None)
+RunProblemNonConvexOscillatory2(kk=4,perturb_theta=None)
+
 #RunProblemConvexGaussian(kk=1)
 #RunProblemConvexGaussian(kk=6)
-#RunProblemConvexOscillatory(kk=1)
-#RunProblemConvexOscillatory(kk=6)
 
-#RunProblemNonConvexOscillatory(kk=1,apgamma=1e-2,apalpha=1e0)
-#RunProblemNonConvexOscillatory(kk=4,apgamma=1e-2,apalpha=1e0)
-#RunProblemNonConvexOscillatory(kk=6,apgamma=1e-2,apalpha=1e0)
+#RunProblemConvexOscillatory(kk=1)
+#RunProblemConvexOscillatory(kk=4)
+
+#RunProblemConvexOscillatoryKhscaling()
+
+#RunProblemConvexOscillatoryStabSweep(kk=6)
+
+#RunProblemNonConvexOscillatoryStabSweep(kk=6)
+
+#RunProblemNonConvexOscillatory(kk=4,apgamma=1e-4,apalpha=1e-2)
+#RunProblemNonConvexOscillatory(kk=4,apgamma=1e-5,apalpha=1e-2)
 
 #RunProblemNonConvexOscillatory(kk=4,apgamma=1e-4,apalpha=1e0)
-#RunProblemNonConvexOscillatory(kk=4,apgamma=5e-2,apalpha=1e0)
+#RunProblemNonConvexOscillatory(kk=4,apgamma=1e-7,apalpha=1e-2)
 #RunProblemNonConvexOscillatory(kk=6,apgamma=1e-1,apalpha=1e3)
+#RunProblemConvexGaussianKscaling()
+#RunProblemConvexOscillatoryKscaling()
 
 #RunProblemNonConvexGaussian(kk=1,apgamma=1e-4,apalpha=1e0)
 #RunProblemNonConvexGaussian(kk=4,apgamma=1e-4,apalpha=1e0)
@@ -626,6 +1155,9 @@ def RunProblemConvexHadamard(kk,nn=5):
 #RunProblemJump(kk=8,apgamma=1e-2,apalpha=1e-0)
 #RunProblemJump(kk=1,apgamma=1e-3,apalpha=1e-0)
 #RunProblemJump(kk=8,apgamma=5e-2,apalpha=1e-0)
+#RunProblemJump(kk=6,apgamma=1e-3,apalpha=1e-0)
+#RunProblemJump(kk=1,apgamma=1e-3,apalpha=1e-0)
+#RunProblemJump(kk=8,apgamma=5e-3,apalpha=1e+0)
 
 #RunProblemConvexOscillatory(kk=10)
 
@@ -633,48 +1165,8 @@ def RunProblemConvexHadamard(kk,nn=5):
 #RunProblemConvexHadamard(kk=10,nn=11)
 
 #RunProblemConvexGaussian(kk=1)
-RunProblemConvexGaussian(kk=6,perturb_theta=-1)
+#RunProblemConvexGaussian(kk=6,perturb_theta=-2)
 #RunProblemNonConvexGaussian(kk=6,apgamma=1e-4,apalpha=1e0,perturb_theta=-2)
 
 #RunProblemConvexOscillatory(kk=1,perturb=True)
 
-'''
-def RunProblemConvexOscillatory(kk):
-    order = 2 
-    ls_mesh = get_mesh_hierarchy(3)
-    #ls_mesh = get_mesh_hierarchy_nonconvex(4)
-    refsol = get_reference_sol("oscillatory",kk=kk)
-    #refsol = get_reference_sol("gaussian",kk=kk)
-    #elastic_nonconvex.rho = kk**2
-    elastic_convex.rho = kk**2
-    elastic_convex.mu = 1.0
-    elastic_convex.lam = 1.25
-
-    for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-2)], [ ScalarType(1e-3),ScalarType(1e-1)] ):
-    #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-1)], [ ScalarType(5e-3),ScalarType(5e-1)] ):
-        print("Considering {0} problem".format(problem_type))
-        l2_errors = [ ]
-        ndofs = [] 
-        for msh in ls_mesh:
-            #l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=rhs,mu_Ind = mu_Ind)
-            l2_error, ndof = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False)
-            l2_errors.append(l2_error)
-            ndofs.append(ndof)
-
-        eoc = [ log(l2_errors[i-1]/l2_errors[i])/log(2) for i in range(1,len(l2_errors))]
-        print("eoc = ", eoc)
-        ndofs = np.array(ndofs) 
-        h_mesh = order/ndofs**(1/2)
-        idx_start = 2 
-        rate_estimate, _ = np.polyfit(np.log(h_mesh)[idx_start:] , np.log(l2_errors)[idx_start:], 1)
-        print("(Relative) L2-error rate estimate {:.2f}".format(rate_estimate))
-        plt.loglog(h_mesh, l2_errors,'-x',label="L2-error")
-        plt.loglog(h_mesh,(l2_errors[0]/h_mesh[0])*h_mesh,label="linear",linestyle='dashed',color='gray')
-        #plt.loglog( h_mesh,(l2_errors[0]/h_mesh[0]**2)*h_mesh**2,label="quadratic",linestyle="dotted",color='gray')
-        plt.loglog(h_mesh,(l2_errors[0]/h_mesh[0]**rate_estimate)*h_mesh**rate_estimate,label="eoc={:.2f}".format(rate_estimate),linestyle='solid',color='gray')
-        plt.xlabel("~h")
-        plt.ylabel("L2-error")
-        plt.legend()
-        plt.savefig("L2-error-elastodynamics-P{0}-{1}.png".format(order,problem_type),transparent=True,dpi=200)
-        plt.show()
-'''

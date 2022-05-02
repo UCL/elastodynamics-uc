@@ -1,0 +1,38 @@
+\documentclass[tikz]{standalone}
+\usetikzlibrary{arrows,spy,shapes,shadows,decorations.pathmorphing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.15}
+
+%\pgfplotsset{
+%  tick label style = {font=\huge},
+ % every axis label = {font=\huge},
+ % legend style = {font=\huge},
+ % label style = {font=\huge}
+%}
+
+\begin{document}
+\begin{tikzpicture}[scale = 1] 
+%\begin{semilogyaxis}[ 
+\begin{loglogaxis}[ 
+                    xlabel={ndof}, 
+                    %ylabel={Residual},
+                    legend pos = north east,
+		    label style={at={(axis description cs:0.5,+0.1)},anchor=north},
+                    %title = {  Relative $L^2$ error on $\Omega$},
+ ] 
+  \addplot[blue,ultra thick,mark=*] 
+  table[x=ndof,y=L2-error-u-uh-B] {../data/Convex-Gaussian-ill-posed-k6-order1.dat}; 
+ \addplot[red,ultra thick,mark=triangle] 
+  table[x=ndof,y=L2-error-u-uh-B] {../data/Convex-Gaussian-ill-posed-k6-order2.dat};  
+\addplot[green!70!black,ultra thick,mark=x] 
+  table[x=ndof,y=L2-error-u-uh-B] {../data/Convex-Gaussian-ill-posed-k6-order3.dat};  
+%\addplot[green!70!black,ultra thick,mark=x] 
+%%  table[x=ndof,y=L2-error-u-uh-B] {../data/Convex-Gaussian-ill-posed-k6-order3.dat};  
+%\addplot[orange,ultra thick,mark=square] 
+%  table[x=N,y=k32] {../../../../data/4_learnedIE_individual/spherical_geom/plane_wave_hom/plane-wave-p12.dat}; 
+
+\legend{ $p = 1$,$p = 2$, $p = 3$}
+\end{loglogaxis}
+%\end{semilogyaxis}
+\end{tikzpicture}
+\end{document}
