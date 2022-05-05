@@ -558,7 +558,7 @@ def get_mesh_hierarchy_fitted_disc(n_ref,eta,h_init=1.25):
             mesh_hierarchy.append(mesh) 
     return mesh_hierarchy
 
-'''
+
 eta = 0.6
 ls_mesh = get_mesh_hierarchy_fitted_disc(4,eta=0.6) 
 tol = 1e-12
@@ -607,4 +607,3 @@ for idx,mesh in enumerate(ls_mesh):
     with XDMFFile(mesh.comm, "B-ind-reflvl{0}.xdmf".format(idx), "w") as file:
         file.write_mesh(mesh)
         file.write_function(B_ind)
-'''

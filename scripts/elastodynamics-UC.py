@@ -487,14 +487,15 @@ def RunProblemNonConvexOscillatory(kk,perturb_theta=None):
     elastic_nonconvex.lam = 1.25
 
 
-    for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5)/kk**2,ScalarType(1e-5)/kk**2], [ ScalarType(1e-2),ScalarType(1e-2)]):
+    #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5)/kk**2,ScalarType(1e-5)/kk**2], [ ScalarType(1e-2),ScalarType(1e-2)]):
+    for add_bc,problem_type,pgamma,palpha in zip([False],["ill-posed"],[ScalarType(1e-5)/kk**2], [ ScalarType(1e-2)]):
     #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-2),ScalarType(1e-2)], [ ScalarType(1e-2),ScalarType(1e-2)]):
         print("Considering {0} problem".format(problem_type))
         for order in orders:
             name_str = "Non-Convex-Oscillatory-{0}-k{1}-order{2}.dat".format(problem_type,kk,order)
             #print(name_str)
             print("Computing for order = {0}".format(order))
-            errors_order = ConvergenceStudy(elastic_nonconvex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma/order**2,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-5/kk**4,name_str = name_str)
+            errors_order = ConvergenceStudy(elastic_nonconvex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-4/kk**4,name_str = name_str)
             #errors_order = ConvergenceStudy(elastic_nonconvex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-1,name_str = name_str)
             print(errors_order)
             
@@ -547,9 +548,9 @@ def RunProblemJump(kk=1,apgamma=1e-1,apalpha=1e-1):
     elastic_convex.rho = kk**2
     elastic_convex.lam = 1.25
     ls_mesh = get_mesh_hierarchy_fitted_disc(5,eta=eta)
-    mu_plus = 4
-    #mu_plus = 1
-    mu_minus = 1
+    #mu_plus = 2
+    mu_plus = 1
+    mu_minus = 2
     refsol,rhs = get_reference_sol(type_str="jump",kk=kk,eta=eta,mu_plus=mu_plus,mu_minus=mu_minus,lam=elastic_convex.lam)
     def mu_Ind(x):
         values = np.zeros(x.shape[1],dtype=ScalarType)
@@ -581,13 +582,20 @@ def RunProblemJump(kk=1,apgamma=1e-1,apalpha=1e-1):
         l2_errors_order = { }
         eoc_order = { }
         h_order = { }
+        L2_error_B_plus_order = { } 
+        L2_error_B_minus_order = { } 
         for order in orders:
             l2_errors = [ ]
+            L2_error_B_plus = [] 
+            L2_error_B_minus = [] 
             ndofs = [] 
             for msh in ls_mesh[:-order]:
                 errors = SolveProblem(problem=elastic_convex,msh=msh,refsol=refsol,order=order,pgamma=pgamma/order**2,palpha=palpha,add_bc=add_bc,export_VTK=order==3,rhs=rhs,mu_Ind=mu_Ind,pGLS=pGLS)
                 l2_error = errors["L2-error-u-uh-B"]
-                ndof = errors["ndof"]     
+                ndof = errors["ndof"]  
+                print("ndof = {0}, L2-error-B = {1}".format(ndof,l2_error))
+                L2_error_B_plus.append(errors["L2-error-u-uh-B-plus"] ) 
+                L2_error_B_minus.append(errors["L2-error-u-uh-B-minus"] ) 
                 l2_errors.append(l2_error)
                 ndofs.append(ndof)
 
@@ -597,13 +605,34 @@ def RunProblemJump(kk=1,apgamma=1e-1,apalpha=1e-1):
             h_mesh = order/ndofs**(1/2)
             idx_start = 2 
             rate_estimate, _ = np.polyfit(np.log(h_mesh)[idx_start:] , np.log(l2_errors)[idx_start:], 1)
-        
+    
+            for error_type,error_str in zip([ L2_error_B_minus, L2_error_B_plus ],["L2-error-u-uh-B-minus","L2-error-u-uh-B-plus"]):
+                #print(error_str)
+                eoc = [ log(error_type[i-1]/error_type[i])/log(2) for i in range(1,len(error_type ))]
+                print("{0}, eoc = {1}".format(error_str,eoc))
+
+
             l2_errors_order[order] =  l2_errors 
+            L2_error_B_plus_order[order] = L2_error_B_plus
+            L2_error_B_minus_order[order] = L2_error_B_minus
             h_order[order] = h_mesh
             eoc_order[order] = round(eoc[-1],2)
-        
+            
+            name_str = "jump-mup{0}-mum{1}-{2}-k{3}-order{4}.dat".format(mu_plus,mu_minus,problem_type,kk,order)
+            results = [np.array(ndofs,dtype=float),np.array(h_order[order],dtype=float)]
+            header_str = "ndof h "
+            for error_type,error_str in zip([ L2_error_B_minus, L2_error_B_plus ],["L2-error-u-uh-B-minus","L2-error-u-uh-B-plus"]):
+                results.append( np.array(error_type,dtype=float))
+                header_str += "{0} ".format(error_str)
+            np.savetxt(fname ="../data/{0}".format(name_str),
+                       X = np.transpose(results),
+                       header = header_str,
+                       comments = '')
+
         for order in [1,2,3]: 
-            plt.loglog(h_order[order], l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+            #plt.loglog(h_order[order], l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+            plt.loglog(h_order[order], L2_error_B_plus_order[order] ,'-x',label="+,p={0}".format(order),linewidth=3,markersize=8)
+            plt.loglog(h_order[order], L2_error_B_minus_order[order] ,linestyle='dashed',label="-,p={0}".format(order),linewidth=3,markersize=8)
             #tmp_str += ",eoc={:.2f}".format(eoc_order[order])
         if problem_type == "well-posed":
             for order,lstyle in zip([1,2,3],['solid','dashed','dotted']): 
@@ -746,8 +775,8 @@ def RunProblemConvexOscillatoryStabSweep(kk):
     palpha = ScalarType(1e-1)
     #kks = np.linspace(1,20,6)
     #kks = [1+2*j for j in range(3)]
-    #pxs = [1e-14,1e-13,1e-12,1e-11,1e-10,1e-9,1e-8,1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1e0,1e1]
-    pxs = [1e-13,1e-11,1e-9,1e-7,1e-5,1e-3,1e-1,1e1]
+    pxs = [1e-14,1e-13,1e-12,1e-11,1e-10,1e-9,1e-8,1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1e0,1e1]
+    #pxs = [1e-13,1e-11,1e-9,1e-7,1e-5,1e-3,1e-1,1e1]
     #pxs = [1e-12,1e-3,1e0]
     pxs_np = np.array(pxs)
 
@@ -817,7 +846,7 @@ def RunProblemNonConvexOscillatoryStabSweep(kk):
     
     orders = [1,2,3]  
     #ls_mesh = [ create_initial_mesh_nonconvex(init_h_scale = h_k) for h_k in meshwidths ]
-    ls_mesh = get_mesh_nonconvex(4,init_h_scale=1.0)
+    ls_mesh = get_mesh_hierarchy_nonconvex(4,init_h_scale=1.0)
     msh = ls_mesh[2]
     
     elastic_nonconvex.mu = 1.0
@@ -832,8 +861,8 @@ def RunProblemNonConvexOscillatoryStabSweep(kk):
     palpha = ScalarType(1e-1)
     #kks = np.linspace(1,20,6)
     #kks = [1+2*j for j in range(3)]
-    #pxs = [1e-14,1e-13,1e-12,1e-11,1e-10,1e-9,1e-8,1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1e0,1e1]
-    pxs = [1e-13,1e-11,1e-9,1e-7,1e-5,1e-3,1e-1,1e1]
+    pxs = [1e-14,1e-13,1e-12,1e-11,1e-10,1e-9,1e-8,1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1e0,1e1]
+    #pxs = [1e-13,1e-11,1e-9,1e-7,1e-5,1e-3,1e-1,1e1]
     #pxs = [1e-12,1e-3,1e0]
     pxs_np = np.array(pxs)
 
@@ -907,14 +936,15 @@ def RunProblemNonConvexOscillatoryStabSweep(kk):
 #RunProblemConvexOscillatory(kk=1)
 #RunProblemConvexOscillatory(kk=6)
 #RunProblemConvexGaussian(kk=6,perturb_theta=None)
-#RunProblemNonConvexOscillatory(kk=4,perturb_theta=None)
+#RunProblemNonConvexOscillatory(kk=1,perturb_theta=None)
 
 #RunProblemConvexOscillatoryStabSweep(kk=1)
 #RunProblemConvexOscillatoryStabSweep(kk=6)
 #RunProblemConvexOscillatoryKhscaling()
+RunProblemNonConvexOscillatoryStabSweep(kk=1)
 
 
-
+#RunProblemJump(kk=6,apgamma=1e-3,apalpha=1e-0)
 
 
 # old stuff
@@ -1325,7 +1355,7 @@ def RunProblemNonConvexOscillatoryStabSweep(kk):
     #kks = np.linspace(1,20,6)
     #kks = [1+2*j for j in range(3)]
     #pgammas = [1e-10,1e-9,1e-8,1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1e0,1e1,1e2,1e3]
-    pxs = [1e-10,1e-9,1e-8,1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1]
+    pxs = [1e-10,1e-9,1e-8,1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1e0,1e1]
     #pgammas = [1e-14,1e-13,1e-12,1e-11,1e-10,1e-9,1e-8,1e-7,1e-6,1e-5,1e-4]
     #pgammas = [1e-10,1e-9,1e-8,1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1]
     pxs_np = np.array(pgammas)
@@ -1364,7 +1394,7 @@ def RunProblemNonConvexOscillatoryStabSweep(kk):
 
 #RunProblemConvexOscillatoryStabSweep(kk=6)
 
-#RunProblemNonConvexOscillatoryStabSweep(kk=6)
+RunProblemNonConvexOscillatoryStabSweep(kk=6)
 
 #RunProblemNonConvexOscillatory(kk=4,apgamma=1e-4,apalpha=1e-2)
 #RunProblemNonConvexOscillatory(kk=4,apgamma=1e-5,apalpha=1e-2)
