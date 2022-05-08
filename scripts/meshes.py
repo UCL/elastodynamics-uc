@@ -178,7 +178,7 @@ def get_mesh_hierarchy(n_ref,init_h_scale=1.0):
         gmsh.model.addPhysicalGroup(1, bnd_square, bnd_marker)
         gmsh.model.mesh.generate(2)
         gmsh.write("mesh.msh")
-        gmsh.finalize()
+    gmsh.finalize()
 
     import meshio
     def create_mesh(mesh, cell_type, prune_z=False):
@@ -216,12 +216,10 @@ def get_mesh_hierarchy(n_ref,init_h_scale=1.0):
     for i in range(n_ref):
         mesh.topology.create_entities(1)
         cells = locate_entities(mesh, mesh.topology.dim, refine_all)
-        #print(cells)
-        if proc == 0:
-            edges = compute_incident_entities(mesh, cells, 2, 1)
-            print(edges)
-            mesh = refine(mesh, edges, redistribute=True)
-            mesh_hierarchy.append(mesh) 
+        edges = compute_incident_entities(mesh, cells, 2, 1)
+        print(edges)
+        mesh = refine(mesh, edges, redistribute=True)
+        mesh_hierarchy.append(mesh) 
     return mesh_hierarchy
 
 '''
@@ -333,8 +331,11 @@ def get_mesh_hierarchy_nonconvex(n_ref,init_h_scale=1.0):
         gmsh.model.addPhysicalGroup(1, bnd_square, bnd_marker)
         gmsh.model.mesh.generate(2)
         gmsh.write("mesh.msh")
-        gmsh.finalize()
+    gmsh.finalize()
 
+    #return 0
+
+    
     import meshio
     def create_mesh(mesh, cell_type, prune_z=False):
         cells = mesh.get_cells_type(cell_type)
@@ -352,10 +353,10 @@ def get_mesh_hierarchy_nonconvex(n_ref,init_h_scale=1.0):
         line_mesh = create_mesh(msh, "line", prune_z=True)
         meshio.write("mesh.xdmf", triangle_mesh)
         meshio.write("mt.xdmf", line_mesh)
+        #return msh
 
     #n_ref = 2 
     #for i in range(n_ref): 
-
     with XDMFFile(MPI.COMM_WORLD, "mesh.xdmf", "r") as xdmf:
         mesh = xdmf.read_mesh(name="Grid")
         ct = xdmf.read_meshtags(mesh, name="Grid")
@@ -371,16 +372,16 @@ def get_mesh_hierarchy_nonconvex(n_ref,init_h_scale=1.0):
     for i in range(n_ref):
         mesh.topology.create_entities(1)
         cells = locate_entities(mesh, mesh.topology.dim, refine_all)
-        #print(cells)
-        if proc == 0:
-            edges = compute_incident_entities(mesh, cells, 2, 1)
-            print(edges)
-            mesh = refine(mesh, edges, redistribute=True)
-            mesh_hierarchy.append(mesh) 
+        edges = compute_incident_entities(mesh, cells, 2, 1)
+        print(edges)
+        mesh = refine(mesh, edges, redistribute=True)
+        mesh_hierarchy.append(mesh) 
+    
     return mesh_hierarchy
-
+    
 '''
 ls_mesh = get_mesh_hierarchy_nonconvex(5)
+
 
 for idx,mesh in enumerate(ls_mesh):
     with XDMFFile(mesh.comm, "mesh-nonconvex-reflvl{0}.xdmf".format(idx), "w") as file:
@@ -551,14 +552,13 @@ def get_mesh_hierarchy_fitted_disc(n_ref,eta,h_init=1.25):
         mesh.topology.create_entities(1)
         cells = locate_entities(mesh, mesh.topology.dim, refine_all)
         #print(cells)
-        if proc == 0:
-            edges = compute_incident_entities(mesh, cells, 2, 1)
-            print(edges)
-            mesh = refine(mesh, edges, redistribute=True)
-            mesh_hierarchy.append(mesh) 
+        edges = compute_incident_entities(mesh, cells, 2, 1)
+        print(edges)
+        mesh = refine(mesh, edges, redistribute=True)
+        mesh_hierarchy.append(mesh) 
     return mesh_hierarchy
 
-
+'''
 eta = 0.6
 ls_mesh = get_mesh_hierarchy_fitted_disc(4,eta=0.6) 
 tol = 1e-12
@@ -607,3 +607,4 @@ for idx,mesh in enumerate(ls_mesh):
     with XDMFFile(mesh.comm, "B-ind-reflvl{0}.xdmf".format(idx), "w") as file:
         file.write_mesh(mesh)
         file.write_function(B_ind)
+'''

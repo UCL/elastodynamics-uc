@@ -190,7 +190,7 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
         #L = ufl.inner(f, w) * ufl.dx + omega_ind * ufl.inner(ue,v) * ufl.dx  + pgamma * h**2 * ufl.inner(f,Lu(v)) * ufl.dx 
         L = ufl.inner(f, w) * dx + omega_ind * ufl.inner(ue,v) * dx  + pGLS * h**2 * ufl.inner(f,Lu(v)) * dx 
 
-    prob = fem.petsc.LinearProblem(a, L, bcs=bcs, petsc_options={"ksp_type": "preonly", "pc_type": "lu","pc_factor_mat_solver_type":"superlu" }) 
+    prob = fem.petsc.LinearProblem(a, L, bcs=bcs, petsc_options={"ksp_type": "preonly", "pc_type": "lu","pc_factor_mat_solver_type":"mumps" }) 
     sol = prob.solve()
     uh,zh = sol.split() 
     
@@ -263,6 +263,7 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
     error_dict["L2-error-uh-Ph(u)-omega"] = L2_error_omega 
 
     # 8. s-norm 
+    #if MPI.COMM_WORLD.rank == 0:
     error_dict["s-norm"] = np.sqrt( error_dict["Jump-uh-Ph(u)"]**2 + error_dict["GLS-uh-Ph(u)-Omega"]**2 
                                     + error_dict["Tikh-uh-Ph(u)-Omega"]**2 + error_dict["L2-error-uh-Ph(u)-omega"]**2 
                                     + error_dict["H1-semi-norm-zh-Omega"]**2 )
@@ -327,7 +328,8 @@ def ConvergenceStudy(problem,ls_mesh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_
             errors_msh = SolveProblem(problem = problem, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,perturb_order=order+perturb_theta,pGLS=pGLS)
         else:
             errors_msh = SolveProblem(problem = problem, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=order==2,pGLS=pGLS)
-        print("ndof = {0}, L2-error-u-uh-B = {1}".format(errors_msh["ndof"],errors_msh["L2-error-u-uh-B"])) 
+        if MPI.COMM_WORLD.rank == 0:
+            print("ndof = {0}, L2-error-u-uh-B = {1}".format(errors_msh["ndof"],errors_msh["L2-error-u-uh-B"])) 
         for error_type in errors_msh:
             errors[error_type].append(errors_msh[error_type])
     
@@ -336,17 +338,19 @@ def ConvergenceStudy(problem,ls_mesh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_
     
     #results = [np.array(errors_msh["ndof"]]
     #header_str = "ndofs "
-    results = []
-    header_str = ""
-    for error_type in errors:
-        if errors[error_type][0] != None: 
-            print(errors[error_type]) 
-            results.append(np.array(errors[error_type],dtype=float))
-            header_str += "{0} ".format(error_type)
-    np.savetxt(fname ="../data/{0}".format(name_str),
-               X = np.transpose(results),
-               header = header_str,
-               comments = '')
+    
+    if MPI.COMM_WORLD.rank == 0:
+        results = []
+        header_str = ""
+        for error_type in errors:
+            if errors[error_type][0] != None: 
+                print(errors[error_type]) 
+                results.append(np.array(errors[error_type],dtype=float))
+                header_str += "{0} ".format(error_type)
+        np.savetxt(fname ="../data/{0}".format(name_str),
+                   X = np.transpose(results),
+                   header = header_str,
+                   comments = '')
 
     return errors 
 
@@ -373,23 +377,25 @@ def RunProblemConvexGaussian(kk,perturb_theta=None):
             h_order = order/ndofs**(1/2) 
             plt.loglog(h_order, errors_order["s-norm"] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
             tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
-            plt.loglog(h_order, h_order**order,label=tmp_str,linestyle='dashed',color='gray')
-            plt.xlabel("h")
-            plt.legend()
-            #plt.savefig("L2-error-convex-Gaussian-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
-            #plt.title("L2-error")
-            plt.show()
-            
-            for error_str in ["Jump-uh-Ph(u)","GLS-uh-Ph(u)-Omega","Tikh-uh-Ph(u)-Omega","L2-error-uh-Ph(u)-omega","s-norm"]:
-                #print(error_str)
-                eoc = [ log(errors_order[error_str][i-1]/errors_order[error_str][i])/log(2) for i in range(1,len(errors_order[error_str]))]
-                print("{0}, eoc = {1}".format(error_str,eoc))
-                error_vals =  errors_order[error_str]
-                plt.loglog(h_order, error_vals ,'-x',label="{0}".format(error_str),linewidth=3,markersize=8)
-            plt.loglog(h_order, h_order**order ,label=tmp_str,linestyle='dashed',color='gray')
-            plt.xlabel("h")
-            plt.legend()
-            plt.show()
+    
+            if MPI.COMM_WORLD.rank == 0:
+                plt.loglog(h_order, h_order**order,label=tmp_str,linestyle='dashed',color='gray')
+                plt.xlabel("h")
+                plt.legend()
+                #plt.savefig("L2-error-convex-Gaussian-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
+                #plt.title("L2-error")
+                plt.show()
+                
+                for error_str in ["Jump-uh-Ph(u)","GLS-uh-Ph(u)-Omega","Tikh-uh-Ph(u)-Omega","L2-error-uh-Ph(u)-omega","s-norm"]:
+                    #print(error_str)
+                    eoc = [ log(errors_order[error_str][i-1]/errors_order[error_str][i])/log(2) for i in range(1,len(errors_order[error_str]))]
+                    print("{0}, eoc = {1}".format(error_str,eoc))
+                    error_vals =  errors_order[error_str]
+                    plt.loglog(h_order, error_vals ,'-x',label="{0}".format(error_str),linewidth=3,markersize=8)
+                plt.loglog(h_order, h_order**order ,label=tmp_str,linestyle='dashed',color='gray')
+                plt.xlabel("h")
+                plt.legend()
+                plt.show()
 
 def RunProblemConvexOscillatory(kk,perturb_theta=None):
     orders = [1,2,3] 
@@ -400,37 +406,42 @@ def RunProblemConvexOscillatory(kk,perturb_theta=None):
     elastic_convex.lam = 1.25
 
     for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(3e-4)/kk**2,ScalarType(3e-4)/kk**2], [ ScalarType(1e-2),ScalarType(1e-2)]):
-        print("Considering {0} problem".format(problem_type))
+        if MPI.COMM_WORLD.rank == 0:
+            print("Considering {0} problem".format(problem_type))
         for order in orders:
             name_str = "Convex-Oscillatory-{0}-k{1}-order{2}.dat".format(problem_type,kk,order)
             #print(name_str)
-            print("Computing for order = {0}".format(order))
+            if MPI.COMM_WORLD.rank == 0:
+                print("Computing for order = {0}".format(order))
             errors_order = ConvergenceStudy(elastic_convex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma/order**2,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-4/kk**4,name_str = name_str)
-            print(errors_order)
+            #print(errors_order)
             
             eoc = [ log(errors_order["L2-error-u-uh-B"][i-1]/errors_order["L2-error-u-uh-B"][i])/log(2) for i in range(1,len(errors_order["L2-error-u-uh-B"]))]
-            print("l2-norm eoc = ", eoc)
+            if MPI.COMM_WORLD.rank == 0:
+                print("l2-norm eoc = ", eoc)
             ndofs = np.array(errors_order["ndof"]) 
             h_order = order/ndofs**(1/2) 
-            plt.loglog(h_order, errors_order["s-norm"] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
-            tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
-            plt.loglog(h_order, h_order**order,label=tmp_str,linestyle='dashed',color='gray')
-            plt.xlabel("h")
-            plt.legend()
-            #plt.savefig("L2-error-convex-Gaussian-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
-            #plt.title("L2-error")
-            plt.show()
             
-            for error_str in ["Jump-uh-Ph(u)","GLS-uh-Ph(u)-Omega","Tikh-uh-Ph(u)-Omega","L2-error-uh-Ph(u)-omega","s-norm"]:
-                #print(error_str)
-                eoc = [ log(errors_order[error_str][i-1]/errors_order[error_str][i])/log(2) for i in range(1,len(errors_order[error_str]))]
-                print("{0}, eoc = {1}".format(error_str,eoc))
-                error_vals =  errors_order[error_str]
-                plt.loglog(h_order, error_vals ,'-x',label="{0}".format(error_str),linewidth=3,markersize=8)
-            plt.loglog(h_order, h_order**order ,label=tmp_str,linestyle='dashed',color='gray')
-            plt.xlabel("h")
-            plt.legend()
-            plt.show()
+            if MPI.COMM_WORLD.rank == 0:
+                plt.loglog(h_order, errors_order["s-norm"] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+                tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
+                plt.loglog(h_order, h_order**order,label=tmp_str,linestyle='dashed',color='gray')
+                plt.xlabel("h")
+                plt.legend()
+                #plt.savefig("L2-error-convex-Gaussian-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
+                #plt.title("L2-error")
+                plt.show()
+                
+                for error_str in ["Jump-uh-Ph(u)","GLS-uh-Ph(u)-Omega","Tikh-uh-Ph(u)-Omega","L2-error-uh-Ph(u)-omega","s-norm"]:
+                    #print(error_str)
+                    eoc = [ log(errors_order[error_str][i-1]/errors_order[error_str][i])/log(2) for i in range(1,len(errors_order[error_str]))]
+                    print("{0}, eoc = {1}".format(error_str,eoc))
+                    error_vals =  errors_order[error_str]
+                    plt.loglog(h_order, error_vals ,'-x',label="{0}".format(error_str),linewidth=3,markersize=8)
+                plt.loglog(h_order, h_order**order ,label=tmp_str,linestyle='dashed',color='gray')
+                plt.xlabel("h")
+                plt.legend()
+                plt.show()
 
 def RunProblemNonConvexGaussian(kk,perturb_theta=None):
     
@@ -457,25 +468,27 @@ def RunProblemNonConvexGaussian(kk,perturb_theta=None):
             print("eoc = ", eoc)
             ndofs = np.array(errors_order["ndof"]) 
             h_order = order/ndofs**(1/2) 
-            plt.loglog(h_order, errors_order["L2-error-u-uh-B"] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
-            tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
-            plt.loglog(h_order, h_order**order,label=tmp_str,linestyle='dashed',color='gray')
-            plt.xlabel("h")
-            plt.legend()
-            #plt.savefig("L2-error-convex-Gaussian-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
-            #plt.title("L2-error")
-            plt.show()
             
-            for error_str in ["Jump-uh-Ph(u)","GLS-uh-Ph(u)-Omega","Tikh-uh-Ph(u)-Omega","L2-error-uh-Ph(u)-omega","s-norm"]:
-                #print(error_str)
-                eoc = [ log(errors_order[error_str][i-1]/errors_order[error_str][i])/log(2) for i in range(1,len(errors_order[error_str]))]
-                print("{0}, eoc = {1}".format(error_str,eoc))
-                error_vals =  errors_order[error_str]
-                plt.loglog(h_order, error_vals ,'-x',label="{0}".format(error_str),linewidth=3,markersize=8)
-            plt.loglog(h_order, h_order**order ,label=tmp_str,linestyle='dashed',color='gray')
-            plt.xlabel("h")
-            plt.legend()
-            plt.show()
+            if MPI.COMM_WORLD.rank == 0:
+                plt.loglog(h_order, errors_order["L2-error-u-uh-B"] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+                tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
+                plt.loglog(h_order, h_order**order,label=tmp_str,linestyle='dashed',color='gray')
+                plt.xlabel("h")
+                plt.legend()
+                #plt.savefig("L2-error-convex-Gaussian-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
+                #plt.title("L2-error")
+                plt.show()
+                
+                for error_str in ["Jump-uh-Ph(u)","GLS-uh-Ph(u)-Omega","Tikh-uh-Ph(u)-Omega","L2-error-uh-Ph(u)-omega","s-norm"]:
+                    #print(error_str)
+                    eoc = [ log(errors_order[error_str][i-1]/errors_order[error_str][i])/log(2) for i in range(1,len(errors_order[error_str]))]
+                    print("{0}, eoc = {1}".format(error_str,eoc))
+                    error_vals =  errors_order[error_str]
+                    plt.loglog(h_order, error_vals ,'-x',label="{0}".format(error_str),linewidth=3,markersize=8)
+                plt.loglog(h_order, h_order**order ,label=tmp_str,linestyle='dashed',color='gray')
+                plt.xlabel("h")
+                plt.legend()
+                plt.show()
 
 def RunProblemNonConvexOscillatory(kk,perturb_theta=None):
     
@@ -502,26 +515,28 @@ def RunProblemNonConvexOscillatory(kk,perturb_theta=None):
             eoc = [ log(errors_order["L2-error-u-uh-B"][i-1]/errors_order["L2-error-u-uh-B"][i])/log(2) for i in range(1,len(errors_order["L2-error-u-uh-B"]))]
             print("eoc = ", eoc)
             ndofs = np.array(errors_order["ndof"]) 
-            h_order = order/ndofs**(1/2) 
-            plt.loglog(h_order, errors_order["L2-error-u-uh-B"] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
-            tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
-            plt.loglog(h_order, h_order**order,label=tmp_str,linestyle='dashed',color='gray')
-            plt.xlabel("h")
-            plt.legend()
-            #plt.savefig("L2-error-convex-Gaussian-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
-            #plt.title("L2-error")
-            plt.show()
+            h_order = order/ndofs**(1/2)
             
-            for error_str in ["Jump-uh-Ph(u)","GLS-uh-Ph(u)-Omega","Tikh-uh-Ph(u)-Omega","L2-error-uh-Ph(u)-omega","s-norm"]:
-                #print(error_str)
-                eoc = [ log(errors_order[error_str][i-1]/errors_order[error_str][i])/log(2) for i in range(1,len(errors_order[error_str]))]
-                print("{0}, eoc = {1}".format(error_str,eoc))
-                error_vals =  errors_order[error_str]
-                plt.loglog(h_order, error_vals ,'-x',label="{0}".format(error_str),linewidth=3,markersize=8)
-            plt.loglog(h_order, h_order**order ,label=tmp_str,linestyle='dashed',color='gray')
-            plt.xlabel("h")
-            plt.legend()
-            plt.show()
+            if MPI.COMM_WORLD.rank == 0:
+                plt.loglog(h_order, errors_order["L2-error-u-uh-B"] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+                tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
+                plt.loglog(h_order, h_order**order,label=tmp_str,linestyle='dashed',color='gray')
+                plt.xlabel("h")
+                plt.legend()
+                #plt.savefig("L2-error-convex-Gaussian-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
+                #plt.title("L2-error")
+                plt.show()
+                
+                for error_str in ["Jump-uh-Ph(u)","GLS-uh-Ph(u)-Omega","Tikh-uh-Ph(u)-Omega","L2-error-uh-Ph(u)-omega","s-norm"]:
+                    #print(error_str)
+                    eoc = [ log(errors_order[error_str][i-1]/errors_order[error_str][i])/log(2) for i in range(1,len(errors_order[error_str]))]
+                    print("{0}, eoc = {1}".format(error_str,eoc))
+                    error_vals =  errors_order[error_str]
+                    plt.loglog(h_order, error_vals ,'-x',label="{0}".format(error_str),linewidth=3,markersize=8)
+                plt.loglog(h_order, h_order**order ,label=tmp_str,linestyle='dashed',color='gray')
+                plt.xlabel("h")
+                plt.legend()
+                plt.show()
 
 
 def RunProblemJump(kk=1,apgamma=1e-1,apalpha=1e-1): 
@@ -618,41 +633,43 @@ def RunProblemJump(kk=1,apgamma=1e-1,apalpha=1e-1):
             h_order[order] = h_mesh
             eoc_order[order] = round(eoc[-1],2)
             
-            name_str = "jump-mup{0}-mum{1}-{2}-k{3}-order{4}.dat".format(mu_plus,mu_minus,problem_type,kk,order)
-            results = [np.array(ndofs,dtype=float),np.array(h_order[order],dtype=float)]
-            header_str = "ndof h "
-            for error_type,error_str in zip([ L2_error_B_minus, L2_error_B_plus ],["L2-error-u-uh-B-minus","L2-error-u-uh-B-plus"]):
-                results.append( np.array(error_type,dtype=float))
-                header_str += "{0} ".format(error_str)
-            np.savetxt(fname ="../data/{0}".format(name_str),
-                       X = np.transpose(results),
-                       header = header_str,
-                       comments = '')
+            if MPI.COMM_WORLD.rank == 0:
+                name_str = "jump-mup{0}-mum{1}-{2}-k{3}-order{4}.dat".format(mu_plus,mu_minus,problem_type,kk,order)
+                results = [np.array(ndofs,dtype=float),np.array(h_order[order],dtype=float)]
+                header_str = "ndof h "
+                for error_type,error_str in zip([ L2_error_B_minus, L2_error_B_plus ],["L2-error-u-uh-B-minus","L2-error-u-uh-B-plus"]):
+                    results.append( np.array(error_type,dtype=float))
+                    header_str += "{0} ".format(error_str)
+                np.savetxt(fname ="../data/{0}".format(name_str),
+                           X = np.transpose(results),
+                           header = header_str,
+                           comments = '')
 
-        for order in [1,2,3]: 
-            #plt.loglog(h_order[order], l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
-            plt.loglog(h_order[order], L2_error_B_plus_order[order] ,'-x',label="+,p={0}".format(order),linewidth=3,markersize=8)
-            plt.loglog(h_order[order], L2_error_B_minus_order[order] ,linestyle='dashed',label="-,p={0}".format(order),linewidth=3,markersize=8)
-            #tmp_str += ",eoc={:.2f}".format(eoc_order[order])
-        if problem_type == "well-posed":
-            for order,lstyle in zip([1,2,3],['solid','dashed','dotted']): 
-                tmp_str = "$\mathcal{{O}}(h^{0})$".format(order+1)
-                plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**(order+1))/( h_order[order][0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
-        if problem_type == "ill-posed":
-            for order,lstyle in zip([1,2],['solid','dashed','dotted']):
-                tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
-                plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**(order))/( h_order[order][0]**(order)) ,label=tmp_str,linestyle=lstyle,color='gray')
-                #aeoc = eoc_order[order]
-                #pow_a = "{:.2f}".format(order)
-                #tmp_str = "eoc = $".format(pow_a)
-                #plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**aeoc)/( h_order[order][0]**aeoc) ,label=tmp_str,linestyle=lstyle,color='gray')
+        if MPI.COMM_WORLD.rank == 0:
+            for order in [1,2,3]: 
+                #plt.loglog(h_order[order], l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+                plt.loglog(h_order[order], L2_error_B_plus_order[order] ,'-x',label="+,p={0}".format(order),linewidth=3,markersize=8)
+                plt.loglog(h_order[order], L2_error_B_minus_order[order] ,linestyle='dashed',label="-,p={0}".format(order),linewidth=3,markersize=8)
+                #tmp_str += ",eoc={:.2f}".format(eoc_order[order])
+            if problem_type == "well-posed":
+                for order,lstyle in zip([1,2,3],['solid','dashed','dotted']): 
+                    tmp_str = "$\mathcal{{O}}(h^{0})$".format(order+1)
+                    plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**(order+1))/( h_order[order][0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
+            if problem_type == "ill-posed":
+                for order,lstyle in zip([1,2],['solid','dashed','dotted']):
+                    tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
+                    plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**(order))/( h_order[order][0]**(order)) ,label=tmp_str,linestyle=lstyle,color='gray')
+                    #aeoc = eoc_order[order]
+                    #pow_a = "{:.2f}".format(order)
+                    #tmp_str = "eoc = $".format(pow_a)
+                    #plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**aeoc)/( h_order[order][0]**aeoc) ,label=tmp_str,linestyle=lstyle,color='gray')
 
-        plt.xlabel("~h")
-        plt.ylabel("L2-error")
-        plt.legend()
-        plt.savefig("L2-error-convex-jump-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
-        #plt.title("L2-error")
-        plt.show()
+            plt.xlabel("~h")
+            plt.ylabel("L2-error")
+            plt.legend()
+            plt.savefig("L2-error-convex-jump-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
+            #plt.title("L2-error")
+            plt.show()
 
     #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5),ScalarType(5e-3)], [ ScalarType(1e-3),ScalarType(1e-1)] ):
     #    print("Considering {0} problem".format(problem_type))
@@ -725,32 +742,33 @@ def RunProblemConvexOscillatoryKhscaling():
                 l2_errors_order[order] = l2_errors
                 h1_semi_errors_order[order] = h1_semi_errors
 
-            name_str = "Convex-Oscillatory-kh-scaling-{0}-{1}.dat".format(problem_type,str_param)
-            results = [kks_np]
-            header_str = "k "
-            for order in orders: 
-                results.append(np.array(l2_errors_order[order],dtype=float))
-                header_str += "l2-order{0} ".format(order)
-                results.append(np.array(h1_semi_errors_order[order],dtype=float))
-                header_str += "h1-semi-order{0} ".format(order)
-            np.savetxt(fname ="../data/{0}".format(name_str),
-                       X = np.transpose(results),
-                       header = header_str,
-                       comments = '')
+            if MPI.COMM_WORLD.rank == 0:
+                name_str = "Convex-Oscillatory-kh-scaling-{0}-{1}.dat".format(problem_type,str_param)
+                results = [kks_np]
+                header_str = "k "
+                for order in orders: 
+                    results.append(np.array(l2_errors_order[order],dtype=float))
+                    header_str += "l2-order{0} ".format(order)
+                    results.append(np.array(h1_semi_errors_order[order],dtype=float))
+                    header_str += "h1-semi-order{0} ".format(order)
+                np.savetxt(fname ="../data/{0}".format(name_str),
+                           X = np.transpose(results),
+                           header = header_str,
+                           comments = '')
 
-            for order,lstyle in zip(orders,['solid','dashed','dotted']):
-                plt.loglog(kks_np, l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
-                #tmp_str = "$\mathcal{{O}}(k^{0})$".format(order+1)
-                #plt.loglog(kks_np, 1.35*l2_errors_order[order][0]*(kks_np**(order+1))/( kks_np[0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
+                for order,lstyle in zip(orders,['solid','dashed','dotted']):
+                    plt.loglog(kks_np, l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+                    #tmp_str = "$\mathcal{{O}}(k^{0})$".format(order+1)
+                    #plt.loglog(kks_np, 1.35*l2_errors_order[order][0]*(kks_np**(order+1))/( kks_np[0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
 
-            plt.loglog(kks_np, 1.35*l2_errors_order[1][0]*(kks_np)/( kks_np[0]) ,label="$\mathcal{O}(k)$",linestyle=lstyle,color='gray')
-            #plt.loglog(kks_np, 1.35*l2_errors_order[2][0]*(kks_np)/( kks_np[0]) ,label="$\mathcal{O}(k)$",linestyle=lstyle,color='gray')
-            plt.xlabel("$k$")
-            plt.ylabel("L2-error")
-            plt.legend()
-            plt.savefig("L2-error-k-Gaussian.png",transparent=True,dpi=200)
-            #plt.title("L2-error")
-            plt.show()
+                plt.loglog(kks_np, 1.35*l2_errors_order[1][0]*(kks_np)/( kks_np[0]) ,label="$\mathcal{O}(k)$",linestyle=lstyle,color='gray')
+                #plt.loglog(kks_np, 1.35*l2_errors_order[2][0]*(kks_np)/( kks_np[0]) ,label="$\mathcal{O}(k)$",linestyle=lstyle,color='gray')
+                plt.xlabel("$k$")
+                plt.ylabel("L2-error")
+                plt.legend()
+                plt.savefig("L2-error-k-Gaussian.png",transparent=True,dpi=200)
+                #plt.title("L2-error")
+                plt.show()
 
 
 def RunProblemConvexOscillatoryStabSweep(kk):
@@ -811,41 +829,42 @@ def RunProblemConvexOscillatoryStabSweep(kk):
             l2_errors_order[order] = l2_errors
             s_errors_order[order] = s_errors 
 
-        name_str = "Convex-Oscillatory-StabSweep-{0}-kk{1}.dat".format(param_str,kk) 
-        results = [pxs_np]
-        header_str = "gamma-Jump "
-        for order in orders: 
-            results.append(np.array(l2_errors_order[order],dtype=float))
-            header_str += "l2-order{0} ".format(order)
-            results.append(np.array(s_errors_order[order],dtype=float))
-            header_str += "s-order{0} ".format(order)
-        np.savetxt(fname ="../data/{0}".format(name_str),
-                   X = np.transpose(results),
-                   header = header_str,
-                   comments = '')
+        if MPI.COMM_WORLD.rank == 0:
+            name_str = "Convex-Oscillatory-StabSweep-{0}-kk{1}.dat".format(param_str,kk) 
+            results = [pxs_np]
+            header_str = "gamma-Jump "
+            for order in orders: 
+                results.append(np.array(l2_errors_order[order],dtype=float))
+                header_str += "l2-order{0} ".format(order)
+                results.append(np.array(s_errors_order[order],dtype=float))
+                header_str += "s-order{0} ".format(order)
+            np.savetxt(fname ="../data/{0}".format(name_str),
+                       X = np.transpose(results),
+                       header = header_str,
+                       comments = '')
 
-        for order,lstyle in zip([1,2,3],['solid','dashed','dotted']):
-            plt.loglog(pxs_np, l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)    
-        plt.xlabel("stabilisation")
-        plt.ylabel("L2-error")
-        plt.legend()
-        plt.savefig("Convex-Oscillatory-StabSweep-L2error-{0}-Jump-kk{1}.png".format(param_str,kk),transparent=True,dpi=200)
-        #plt.title("L2-error")
-        plt.show()
-        
-        for order,lstyle in zip([1,2,3],['solid','dashed','dotted']):
-            plt.loglog(pxs_np, s_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)    
-        plt.xlabel("$\gamma$")
-        plt.ylabel("s-error")
-        plt.legend()
-        #plt.savefig("L2-error-stab-gamma.png",transparent=True,dpi=200)
-        #plt.title("L2-error")
-        plt.show()
+            for order,lstyle in zip([1,2,3],['solid','dashed','dotted']):
+                plt.loglog(pxs_np, l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)    
+            plt.xlabel("stabilisation")
+            plt.ylabel("L2-error")
+            plt.legend()
+            plt.savefig("Convex-Oscillatory-StabSweep-L2error-{0}-Jump-kk{1}.png".format(param_str,kk),transparent=True,dpi=200)
+            #plt.title("L2-error")
+            plt.show()
+            
+            for order,lstyle in zip([1,2,3],['solid','dashed','dotted']):
+                plt.loglog(pxs_np, s_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)    
+            plt.xlabel("$\gamma$")
+            plt.ylabel("s-error")
+            plt.legend()
+            #plt.savefig("L2-error-stab-gamma.png",transparent=True,dpi=200)
+            #plt.title("L2-error")
+            plt.show()
 
 def RunProblemNonConvexOscillatoryStabSweep(kk):
-    
     orders = [1,2,3]  
     #ls_mesh = [ create_initial_mesh_nonconvex(init_h_scale = h_k) for h_k in meshwidths ]
+    #if MPI.COMM_WORLD.rank == 0:
     ls_mesh = get_mesh_hierarchy_nonconvex(4,init_h_scale=1.0)
     msh = ls_mesh[2]
     
@@ -893,40 +912,42 @@ def RunProblemNonConvexOscillatoryStabSweep(kk):
                 ndof = errors["ndof"]     
                 l2_errors.append(l2_error)
                 s_errors.append(errors["s-norm"])
-                print("ndof = {0}, l2_error = {1},px = {2}".format(ndof,l2_error,px))
+                if MPI.COMM_WORLD.rank == 0:
+                    print("ndof = {0}, l2_error = {1},px = {2}".format(ndof,l2_error,px))
             l2_errors_order[order] = l2_errors
             s_errors_order[order] = s_errors 
 
-        name_str = "NonConvex-Oscillatory-StabSweep-{0}-kk{1}.dat".format(param_str,kk) 
-        results = [pxs_np]
-        header_str = "gamma-Jump "
-        for order in orders: 
-            results.append(np.array(l2_errors_order[order],dtype=float))
-            header_str += "l2-order{0} ".format(order)
-            results.append(np.array(s_errors_order[order],dtype=float))
-            header_str += "s-order{0} ".format(order)
-        np.savetxt(fname ="../data/{0}".format(name_str),
-                   X = np.transpose(results),
-                   header = header_str,
-                   comments = '')
+        if MPI.COMM_WORLD.rank == 0:
+            name_str = "NonConvex-Oscillatory-StabSweep-{0}-kk{1}.dat".format(param_str,kk) 
+            results = [pxs_np]
+            header_str = "gamma-Jump "
+            for order in orders: 
+                results.append(np.array(l2_errors_order[order],dtype=float))
+                header_str += "l2-order{0} ".format(order)
+                results.append(np.array(s_errors_order[order],dtype=float))
+                header_str += "s-order{0} ".format(order)
+            np.savetxt(fname ="../data/{0}".format(name_str),
+                       X = np.transpose(results),
+                       header = header_str,
+                       comments = '')
 
-        for order,lstyle in zip([1,2,3],['solid','dashed','dotted']):
-            plt.loglog(pxs_np, l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)    
-        plt.xlabel("stabilisation")
-        plt.ylabel("L2-error")
-        plt.legend()
-        plt.savefig("NonConvex-Oscillatory-StabSweep-L2error-{0}-Jump-kk{1}.png".format(param_str,kk),transparent=True,dpi=200)
-        #plt.title("L2-error")
-        plt.show()
-        
-        for order,lstyle in zip([1,2,3],['solid','dashed','dotted']):
-            plt.loglog(pxs_np, s_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)    
-        plt.xlabel("$\gamma$")
-        plt.ylabel("s-error")
-        plt.legend()
-        #plt.savefig("L2-error-stab-gamma.png",transparent=True,dpi=200)
-        #plt.title("L2-error")
-        plt.show()
+            for order,lstyle in zip([1,2,3],['solid','dashed','dotted']):
+                plt.loglog(pxs_np, l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)    
+            plt.xlabel("stabilisation")
+            plt.ylabel("L2-error")
+            plt.legend()
+            plt.savefig("NonConvex-Oscillatory-StabSweep-L2error-{0}-Jump-kk{1}.png".format(param_str,kk),transparent=True,dpi=200)
+            #plt.title("L2-error")
+            plt.show()
+            
+            for order,lstyle in zip([1,2,3],['solid','dashed','dotted']):
+                plt.loglog(pxs_np, s_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)    
+            plt.xlabel("$\gamma$")
+            plt.ylabel("s-error")
+            plt.legend()
+            #plt.savefig("L2-error-stab-gamma.png",transparent=True,dpi=200)
+            #plt.title("L2-error")
+            plt.show()
 
 
 
@@ -934,15 +955,17 @@ def RunProblemNonConvexOscillatoryStabSweep(kk):
  
 # Runs for draft
 #RunProblemConvexOscillatory(kk=1)
-#RunProblemConvexOscillatory(kk=6)
+RunProblemConvexOscillatory(kk=6)
 #RunProblemConvexGaussian(kk=6,perturb_theta=None)
 #RunProblemNonConvexOscillatory(kk=1,perturb_theta=None)
 
 #RunProblemConvexOscillatoryStabSweep(kk=1)
 #RunProblemConvexOscillatoryStabSweep(kk=6)
 #RunProblemConvexOscillatoryKhscaling()
-RunProblemNonConvexOscillatoryStabSweep(kk=1)
-
+#if MPI.COMM_WORLD.rank == 0:
+#RunProblemNonConvexOscillatoryStabSweep(kk=1)
+#print("myrank = ",MPI.COMM_WORLD.rank)
+#ls_mesh = get_mesh_hierarchy_nonconvex(1,init_h_scale=1.0)
 
 #RunProblemJump(kk=6,apgamma=1e-3,apalpha=1e-0)
 
