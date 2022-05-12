@@ -5,7 +5,7 @@ from dolfinx.fem import (Constant, dirichletbc, Function, FunctionSpace, assembl
                          form, locate_dofs_geometrical, locate_dofs_topological)
 from dolfinx.fem.petsc import LinearProblem
 from dolfinx.io import XDMFFile
-from dolfinx.mesh import create_unit_square, locate_entities, refine, compute_incident_entities
+from dolfinx.mesh import create_unit_square, locate_entities, refine, compute_incident_entities, GhostMode
 from dolfinx.plot import create_vtk_mesh
 
 from ufl import (SpatialCoordinate, TestFunction, TrialFunction,
@@ -14,6 +14,8 @@ from ufl import (SpatialCoordinate, TestFunction, TrialFunction,
 from mpi4py import MPI
 from petsc4py.PETSc import ScalarType
 
+GM = GhostMode.shared_facet
+#GM = GhostMode.none
 
 def create_initial_mesh_convex(init_h_scale=1.0):
 
@@ -101,7 +103,7 @@ def create_initial_mesh_convex(init_h_scale=1.0):
     #for i in range(n_ref): 
 
     with XDMFFile(MPI.COMM_WORLD, "mesh.xdmf", "r") as xdmf:
-        mesh = xdmf.read_mesh(name="Grid")
+        mesh = xdmf.read_mesh(name="Grid", ghost_mode = GM) 
         ct = xdmf.read_meshtags(mesh, name="Grid")
         mesh.topology.create_connectivity(mesh.topology.dim, mesh.topology.dim-1)
     with XDMFFile(MPI.COMM_WORLD, "mt.xdmf", "r") as xdmf:
@@ -202,7 +204,10 @@ def get_mesh_hierarchy(n_ref,init_h_scale=1.0):
     #for i in range(n_ref): 
 
     with XDMFFile(MPI.COMM_WORLD, "mesh.xdmf", "r") as xdmf:
-        mesh = xdmf.read_mesh(name="Grid")
+        #help(xdmf.read_mesh)
+        print("ghost_mode = GhostMode.shared_facet")
+        mesh = xdmf.read_mesh(name="Grid",ghost_mode = GM)
+        #help(xdmf.read_mesh)
         ct = xdmf.read_meshtags(mesh, name="Grid")
         mesh.topology.create_connectivity(mesh.topology.dim, mesh.topology.dim-1)
     with XDMFFile(MPI.COMM_WORLD, "mt.xdmf", "r") as xdmf:
@@ -217,7 +222,8 @@ def get_mesh_hierarchy(n_ref,init_h_scale=1.0):
         mesh.topology.create_entities(1)
         cells = locate_entities(mesh, mesh.topology.dim, refine_all)
         edges = compute_incident_entities(mesh, cells, 2, 1)
-        print(edges)
+        #print(edges)
+        #help(refine)
         mesh = refine(mesh, edges, redistribute=True)
         mesh_hierarchy.append(mesh) 
     return mesh_hierarchy
@@ -347,7 +353,6 @@ def get_mesh_hierarchy_nonconvex(n_ref,init_h_scale=1.0):
     if proc == 0:
         # Read in mesh
         msh = meshio.read("mesh.msh")
-
         # Create and save one file for the mesh, and one file for the facets
         triangle_mesh = create_mesh(msh, "triangle", prune_z=True)
         line_mesh = create_mesh(msh, "line", prune_z=True)
@@ -358,7 +363,7 @@ def get_mesh_hierarchy_nonconvex(n_ref,init_h_scale=1.0):
     #n_ref = 2 
     #for i in range(n_ref): 
     with XDMFFile(MPI.COMM_WORLD, "mesh.xdmf", "r") as xdmf:
-        mesh = xdmf.read_mesh(name="Grid")
+        mesh = xdmf.read_mesh(name="Grid", ghost_mode=GM)
         ct = xdmf.read_meshtags(mesh, name="Grid")
         mesh.topology.create_connectivity(mesh.topology.dim, mesh.topology.dim-1)
     with XDMFFile(MPI.COMM_WORLD, "mt.xdmf", "r") as xdmf:
@@ -537,7 +542,7 @@ def get_mesh_hierarchy_fitted_disc(n_ref,eta,h_init=1.25):
     #for i in range(n_ref): 
 
     with XDMFFile(MPI.COMM_WORLD, "mesh.xdmf", "r") as xdmf:
-        mesh = xdmf.read_mesh(name="Grid")
+        mesh = xdmf.read_mesh(name="Grid",ghost_mode=GM)
         ct = xdmf.read_meshtags(mesh, name="Grid")
         mesh.topology.create_connectivity(mesh.topology.dim, mesh.topology.dim-1)
     with XDMFFile(MPI.COMM_WORLD, "mt.xdmf", "r") as xdmf:

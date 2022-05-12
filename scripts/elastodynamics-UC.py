@@ -75,7 +75,7 @@ def get_reference_sol(type_str,kk=1,eta=0.6,mu_plus=2,mu_minus=1,lam=1.25,nn=5):
         return None 
 
 
-def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False,export_VTK=False,rhs=None,mu_Ind=None,perturb_order=None,pGLS=None): 
+def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False,export_VTK=False,rhs=None,mu_Ind=None,perturb_order=None,pGLS=None,compute_cond=False,GradTikhStab=False): 
 
     error_dict = {"L2-error-u-uh-B": None,
                   "H1-semi-error-u-uh-B": None,
@@ -90,6 +90,7 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
                   "L2-error-u-uh-B-minus": None,
                   "ndof": None,
                   "hmax": None,
+                  "cond": None
                  }
 
     if pGLS == None:
@@ -165,11 +166,58 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
     a +=  pgamma*0.5*(h('+')+h('-'))*ufl.inner(ufl.jump(sigma(u),n),ufl.jump(sigma(v),n))*ufl.dS
     #a += pgamma * h**2 * ufl.inner(Lu(u),Lu(v)) * ufl.dx 
     a += pGLS * h**2 * ufl.inner(Lu(u),Lu(v)) * dx 
-    a += palpha * h**(2*order) * ufl.inner(u,v) * dx
-    #a += palpha * h**(2*order) * ufl.inner(ufl.nabla_grad(u),ufl.nabla_grad(v)) * ufl.dx
+    if GradTikhStab:
+        a += palpha * h**(2*order) * ufl.inner(ufl.nabla_grad(u),ufl.nabla_grad(v)) * ufl.dx
+    else:
+        a += palpha * h**(2*order) * ufl.inner(u,v) * dx
     a += ufl.inner(sigma(v),epsilon(z)) * ufl.dx - problem.rho * ufl.inner(v,z) * dx
     a -= ufl.inner( ufl.nabla_grad(z), ufl.nabla_grad(w)) * dx 
     a += ufl.inner(sigma(u),epsilon(w)) * ufl.dx - problem.rho * ufl.inner(u,w) * dx
+
+    if compute_cond: 
+        from petsc4py import PETSc
+        from slepc4py import SLEPc
+
+        aa = fem.form( omega_ind * ufl.inner(u,v) * dx + pgamma*0.5*(h('+')+h('-'))*ufl.inner(ufl.jump(sigma(u),n),ufl.jump(sigma(v),n))*ufl.dS
+                 + pGLS * h**2 * ufl.inner(Lu(u),Lu(v)) * dx + palpha * h**(2*order) * ufl.inner(u,v) * dx 
+                 + ufl.inner(sigma(v),epsilon(z)) * ufl.dx - problem.rho * ufl.inner(v,z) * dx - ufl.inner( ufl.nabla_grad(z), ufl.nabla_grad(w)) * dx 
+                 +  ufl.inner(sigma(u),epsilon(w)) * ufl.dx - problem.rho * ufl.inner(u,w) * dx
+                 )
+        A = fem.petsc.assemble_matrix(aa, [])
+        A.assemble()
+   
+        Ainv = PETSc.KSP().create(msh.comm)
+        Ainv.setOperators(A)
+        Ainv.setType(PETSc.KSP.Type.PREONLY)
+        Ainv.getPC().setType(PETSc.PC.Type.LU)
+
+        eigensolver = SLEPc.EPS().create(MPI.COMM_WORLD)
+        eigensolver.setOperators(A)
+        eigensolver.setDimensions(nev=1)
+
+        eigensolver.setWhichEigenpairs(SLEPc.EPS.Which.LARGEST_MAGNITUDE)
+        eigensolver.setProblemType(SLEPc.EPS.ProblemType.NHEP)
+        eigensolver.solve()
+        eigen_max = eigensolver.getEigenvalue(0)
+    
+        shift = eigensolver.getST()
+        shift.setType(SLEPc.ST.Type.SINVERT)
+
+        eigensolver.setST(shift)
+        eigensolver.setOperators(A)
+        eigensolver.setTarget(1e-10)
+        eigensolver.setWhichEigenpairs(SLEPc.EPS.Which.TARGET_REAL)
+        eigensolver.setType('krylovschur')
+        eigensolver.setFromOptions()
+        eigensolver.setUp()
+        eigensolver.solve()
+
+        evs = eigensolver.getConverged()
+        eigen_min = eigensolver.getEigenvalue(0)
+        cond_est = abs(eigen_max)/abs(eigen_min)
+        print("cond = " , cond_est)
+        error_dict["cond"] = cond_est
+
 
     if perturb_order!=None:
         delta_u = fem.Function(V0)
@@ -254,6 +302,7 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
 
     # 6. Tikh-uh-Ph(u)-Omega 
     Tikh_error_local = fem.form( palpha * h**(2*order) * ufl.inner(uh_V0-Phu,uh_V0-Phu) * dx )
+    #Tikh_error_local = fem.form( palpha * h**(2*order) * ufl.inner(ufl.nabla_grad(uh_V0-Phu),ufl.nabla_grad(uh_V0-Phu)) * dx )
     Tikh_error = np.sqrt(msh.comm.allreduce(fem.assemble_scalar(Tikh_error_local), op=MPI.SUM))
     error_dict["Tikh-uh-Ph(u)-Omega"] = Tikh_error 
 
@@ -306,7 +355,7 @@ plt.rc('xtick',labelsize=12)
 plt.rc('ytick',labelsize=12)
 
 
-def ConvergenceStudy(problem,ls_mesh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=None,name_str="dummy.txt"):
+def ConvergenceStudy(problem,ls_mesh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=None,name_str="dummy.txt",compute_cond=False,GradTikhStab=False):
     errors = { "L2-error-u-uh-B": [],
                "H1-semi-error-u-uh-B": [],
                "H1-semi-error-u-uh-B-absolute": [],
@@ -320,14 +369,15 @@ def ConvergenceStudy(problem,ls_mesh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_
                "L2-error-u-uh-B-minus": [],
                "ndof": [],
                "hmax":[],
-               "reflvl":[]
+               "reflvl":[],
+               "cond":[]
              }
 
     for msh in ls_mesh:
         if perturb_theta!=None:
-            errors_msh = SolveProblem(problem = problem, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,perturb_order=order+perturb_theta,pGLS=pGLS)
+            errors_msh = SolveProblem(problem = problem, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,perturb_order=order+perturb_theta,pGLS=pGLS,compute_cond=compute_cond,GradTikhStab=GradTikhStab)
         else:
-            errors_msh = SolveProblem(problem = problem, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=order==2,pGLS=pGLS)
+            errors_msh = SolveProblem(problem = problem, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=order==2,pGLS=pGLS,compute_cond=compute_cond,GradTikhStab=GradTikhStab)
         if MPI.COMM_WORLD.rank == 0:
             print("ndof = {0}, L2-error-u-uh-B = {1}".format(errors_msh["ndof"],errors_msh["L2-error-u-uh-B"])) 
         for error_type in errors_msh:
@@ -399,7 +449,7 @@ def RunProblemConvexGaussian(kk,perturb_theta=None):
 
 def RunProblemConvexOscillatory(kk,perturb_theta=None):
     orders = [1,2,3] 
-    ls_mesh = get_mesh_hierarchy(5)
+    ls_mesh = get_mesh_hierarchy(6)
     refsol = get_reference_sol("oscillatory",kk=kk)
     elastic_convex.rho = kk**2
     elastic_convex.mu = 1.0
@@ -493,22 +543,27 @@ def RunProblemNonConvexGaussian(kk,perturb_theta=None):
 def RunProblemNonConvexOscillatory(kk,perturb_theta=None):
     
     orders = [1,2,3] 
-    ls_mesh = get_mesh_hierarchy_nonconvex(5)
+    #ls_mesh = get_mesh_hierarchy_nonconvex(6)
+    ls_mesh = get_mesh_hierarchy_nonconvex(6)
     refsol = get_reference_sol("oscillatory",kk=kk)
     elastic_nonconvex.rho = kk**2
     elastic_nonconvex.mu = 1.0
     elastic_nonconvex.lam = 1.25
 
 
-    #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-5)/kk**2,ScalarType(1e-5)/kk**2], [ ScalarType(1e-2),ScalarType(1e-2)]):
-    for add_bc,problem_type,pgamma,palpha in zip([False],["ill-posed"],[ScalarType(1e-5)/kk**2], [ ScalarType(1e-2)]):
+    #for add_bc,problem_type,pgamma,palpha in zip([False],["ill-posed"],[ScalarType(1e-5)/kk**2], [ ScalarType(1e-2)]):
+    for add_bc,problem_type,pgamma,palpha in zip([False],["ill-posed"],[ ScalarType(1e-6)/kk**2], [ ScalarType(1e-2)]):
+    #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ScalarType(1e-5)/kk**2, ScalarType(1e-5)/kk**2], [ ScalarType(1e-2), ScalarType(1e-2)]):
     #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-2),ScalarType(1e-2)], [ ScalarType(1e-2),ScalarType(1e-2)]):
         print("Considering {0} problem".format(problem_type))
         for order in orders:
             name_str = "Non-Convex-Oscillatory-{0}-k{1}-order{2}.dat".format(problem_type,kk,order)
             #print(name_str)
             print("Computing for order = {0}".format(order))
-            errors_order = ConvergenceStudy(elastic_nonconvex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-4/kk**4,name_str = name_str)
+            if kk == 1:
+                errors_order = ConvergenceStudy(elastic_nonconvex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-4/kk**4,name_str = name_str,compute_cond=False)
+            else:
+                errors_order = ConvergenceStudy(elastic_nonconvex,ls_mesh[:-order],refsol,order=order,pgamma=10**(2+order)*pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-4/kk**4,name_str = name_str,compute_cond=False)
             #errors_order = ConvergenceStudy(elastic_nonconvex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-1,name_str = name_str)
             print(errors_order)
             
@@ -802,9 +857,11 @@ def RunProblemConvexOscillatoryStabSweep(kk):
     for param_str in ["gamma-Jump","gamma-GLS","alpha"]:
         l2_errors_order = { }
         s_errors_order = { }
+        cond_order = { } 
         for order in orders:
             l2_errors = [] 
             s_errors = [] 
+            cond = [] 
             for px in pxs:
                 if param_str == "gamma-Jump":
                     pgamma = ScalarType(px)
@@ -820,14 +877,16 @@ def RunProblemConvexOscillatoryStabSweep(kk):
                     palpha = ScalarType(px)
                     pGLS = ScalarType(1e-4/(order*kk)**2)
 
-                errors = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,pGLS= pGLS)
+                errors = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,pGLS= pGLS,compute_cond=True)
                 l2_error = errors["L2-error-u-uh-B"]
                 ndof = errors["ndof"]     
                 l2_errors.append(l2_error)
                 s_errors.append(errors["s-norm"])
+                cond.append(errors["cond"])
                 print("ndof = {0}, l2_error = {1},px = {2}".format(ndof,l2_error,px))
             l2_errors_order[order] = l2_errors
             s_errors_order[order] = s_errors 
+            cond_order[order] = cond
 
         if MPI.COMM_WORLD.rank == 0:
             name_str = "Convex-Oscillatory-StabSweep-{0}-kk{1}.dat".format(param_str,kk) 
@@ -838,6 +897,8 @@ def RunProblemConvexOscillatoryStabSweep(kk):
                 header_str += "l2-order{0} ".format(order)
                 results.append(np.array(s_errors_order[order],dtype=float))
                 header_str += "s-order{0} ".format(order)
+                results.append(np.array(cond_order[order],dtype=float))
+                header_str += "cond-order{0} ".format(order)
             np.savetxt(fname ="../data/{0}".format(name_str),
                        X = np.transpose(results),
                        header = header_str,
@@ -889,9 +950,11 @@ def RunProblemNonConvexOscillatoryStabSweep(kk):
     for param_str in ["gamma-Jump","gamma-GLS","alpha"]:
         l2_errors_order = { }
         s_errors_order = { }
+        cond_order = { }
         for order in orders:
             l2_errors = [] 
             s_errors = [] 
+            conds = [] 
             for px in pxs:
                 if param_str == "gamma-Jump":
                     pgamma = ScalarType(px)
@@ -907,15 +970,17 @@ def RunProblemNonConvexOscillatoryStabSweep(kk):
                     palpha = ScalarType(px)
                     pGLS = ScalarType(1e-4/(order*kk)**2)
 
-                errors = SolveProblem(problem = elastic_nonconvex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,pGLS= pGLS)
+                errors = SolveProblem(problem = elastic_nonconvex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,pGLS= pGLS,compute_cond=True) 
                 l2_error = errors["L2-error-u-uh-B"]
                 ndof = errors["ndof"]     
                 l2_errors.append(l2_error)
                 s_errors.append(errors["s-norm"])
+                conds.append(errors["cond"])
                 if MPI.COMM_WORLD.rank == 0:
                     print("ndof = {0}, l2_error = {1},px = {2}".format(ndof,l2_error,px))
             l2_errors_order[order] = l2_errors
-            s_errors_order[order] = s_errors 
+            s_errors_order[order] = s_errors
+            cond_order[order] = conds 
 
         if MPI.COMM_WORLD.rank == 0:
             name_str = "NonConvex-Oscillatory-StabSweep-{0}-kk{1}.dat".format(param_str,kk) 
@@ -926,6 +991,8 @@ def RunProblemNonConvexOscillatoryStabSweep(kk):
                 header_str += "l2-order{0} ".format(order)
                 results.append(np.array(s_errors_order[order],dtype=float))
                 header_str += "s-order{0} ".format(order)
+                results.append(np.array(cond_order[order],dtype=float))
+                header_str += "cond{0} ".format(order)
             np.savetxt(fname ="../data/{0}".format(name_str),
                        X = np.transpose(results),
                        header = header_str,
@@ -949,21 +1016,77 @@ def RunProblemNonConvexOscillatoryStabSweep(kk):
             #plt.title("L2-error")
             plt.show()
 
+def RunProblemNonConvexOscillatoryGradTikhStab(kk,perturb_theta=None):
+    
+    orders = [1,2,3] 
+    #ls_mesh = get_mesh_hierarchy_nonconvex(6)
+    ls_mesh = get_mesh_hierarchy_nonconvex(6)
+    refsol = get_reference_sol("oscillatory",kk=kk)
+    elastic_nonconvex.rho = kk**2
+    elastic_nonconvex.mu = 1.0
+    elastic_nonconvex.lam = 1.25
+
+
+    #for add_bc,problem_type,pgamma,palpha in zip([False],["ill-posed"],[ScalarType(1e-5)/kk**2], [ ScalarType(1e-2)]):
+    for add_bc,problem_type,pgamma,palpha in zip([False],["ill-posed"],[ ScalarType(1e-6)/kk**2], [ ScalarType(1e-2)]):
+    #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ScalarType(1e-5)/kk**2, ScalarType(1e-5)/kk**2], [ ScalarType(1e-2), ScalarType(1e-2)]):
+    #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(1e-2),ScalarType(1e-2)], [ ScalarType(1e-2),ScalarType(1e-2)]):
+        print("Considering {0} problem".format(problem_type))
+        for order in orders:
+            name_str = "Non-Convex-Oscillatory-GradTikhStab-{0}-k{1}-order{2}.dat".format(problem_type,kk,order)
+            #print(name_str)
+            print("Computing for order = {0}".format(order))
+            if kk == 1:
+                errors_order = ConvergenceStudy(elastic_nonconvex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-4/kk**4,name_str = name_str,compute_cond=False, GradTikhStab=True)
+            else:
+                errors_order = ConvergenceStudy(elastic_nonconvex,ls_mesh[:-order],refsol,order=order,pgamma=10**(2+order)*pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-4/kk**4,name_str = name_str,compute_cond=False, GradTikhStab=True)
+            #errors_order = ConvergenceStudy(elastic_nonconvex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-1,name_str = name_str)
+            print(errors_order)
+            
+            eoc = [ log(errors_order["L2-error-u-uh-B"][i-1]/errors_order["L2-error-u-uh-B"][i])/log(2) for i in range(1,len(errors_order["L2-error-u-uh-B"]))]
+            print("eoc = ", eoc)
+            ndofs = np.array(errors_order["ndof"]) 
+            h_order = order/ndofs**(1/2)
+            
+            if MPI.COMM_WORLD.rank == 0:
+                plt.loglog(h_order, errors_order["L2-error-u-uh-B"] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+                tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
+                plt.loglog(h_order, h_order**order,label=tmp_str,linestyle='dashed',color='gray')
+                plt.xlabel("h")
+                plt.legend()
+                #plt.savefig("L2-error-convex-Gaussian-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
+                #plt.title("L2-error")
+                plt.show()
+                
+                for error_str in ["Jump-uh-Ph(u)","GLS-uh-Ph(u)-Omega","Tikh-uh-Ph(u)-Omega","L2-error-uh-Ph(u)-omega","s-norm"]:
+                    #print(error_str)
+                    eoc = [ log(errors_order[error_str][i-1]/errors_order[error_str][i])/log(2) for i in range(1,len(errors_order[error_str]))]
+                    print("{0}, eoc = {1}".format(error_str,eoc))
+                    error_vals =  errors_order[error_str]
+                    plt.loglog(h_order, error_vals ,'-x',label="{0}".format(error_str),linewidth=3,markersize=8)
+                plt.loglog(h_order, h_order**order ,label=tmp_str,linestyle='dashed',color='gray')
+                plt.xlabel("h")
+                plt.legend()
+                plt.show()
 
 
 # pgamma = 1e-5/kk**2 , pGLS = 1e-4/kk**4
  
 # Runs for draft
 #RunProblemConvexOscillatory(kk=1)
-RunProblemConvexOscillatory(kk=6)
+#RunProblemConvexOscillatory(kk=6)
 #RunProblemConvexGaussian(kk=6,perturb_theta=None)
-#RunProblemNonConvexOscillatory(kk=1,perturb_theta=None)
+#RunProblemNonConvexOscillatory(kk=4,perturb_theta=None)
+
+RunProblemNonConvexOscillatoryGradTikhStab(kk=4,perturb_theta=None)
 
 #RunProblemConvexOscillatoryStabSweep(kk=1)
 #RunProblemConvexOscillatoryStabSweep(kk=6)
 #RunProblemConvexOscillatoryKhscaling()
 #if MPI.COMM_WORLD.rank == 0:
-#RunProblemNonConvexOscillatoryStabSweep(kk=1)
+
+#RunProblemNonConvexOscillatoryStabSweep(kk=4)
+
 #print("myrank = ",MPI.COMM_WORLD.rank)
 #ls_mesh = get_mesh_hierarchy_nonconvex(1,init_h_scale=1.0)
 
@@ -1407,6 +1530,65 @@ def RunProblemNonConvexOscillatoryStabSweep(kk):
         #plt.title("L2-error")
         plt.show()
 
+
+def RunProblemNonConvexOscillatoryGradientTikhnovStab(kk,apgamma=1e-5,apalpha=1e5):
+    orders = [1,2,3] 
+    ls_mesh = get_mesh_hierarchy_nonconvex(5)
+    refsol = get_reference_sol("oscillatory",kk=kk)
+    elastic_nonconvex.rho = kk**2
+    elastic_nonconvex.mu = 1.0
+    elastic_nonconvex.lam = 1.25
+
+    #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(apgamma),ScalarType(apgamma/kk**2)], [ ScalarType(apalpha),ScalarType(apalpha)] ):
+    for add_bc,problem_type,pgamma,palpha in zip([False],["ill-posed"],[ScalarType(apgamma/kk**2)], [ ScalarType(apalpha)] ):
+        
+        print("Considering {0} problem".format(problem_type))
+        l2_errors_order = { }
+        eoc_order = { }
+        h_order = { }
+        for order in orders:
+            l2_errors = [ ]
+            ndofs = [] 
+            for msh in ls_mesh[:-order]:
+                l2_error, ndof = SolveProblem(problem = elastic_nonconvex, msh = msh,refsol=refsol,order=order,pgamma=pgamma/order**2,palpha=palpha,add_bc=add_bc,export_VTK=False,pGLS=1e-5/kk**4)
+                l2_errors.append(l2_error)
+                ndofs.append(ndof)
+
+            eoc = [ log(l2_errors[i-1]/l2_errors[i])/log(2) for i in range(1,len(l2_errors))]
+            print("eoc = ", eoc)
+            ndofs = np.array(ndofs) 
+            h_mesh = order/ndofs**(1/2)
+            idx_start = 2 
+            rate_estimate, _ = np.polyfit(np.log(h_mesh)[idx_start:] , np.log(l2_errors)[idx_start:], 1)
+        
+            l2_errors_order[order] =  l2_errors 
+            h_order[order] = h_mesh
+            eoc_order[order] = round(eoc[-1],2)
+        
+        for order in [1,2,3]: 
+            plt.loglog(h_order[order], l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+            #tmp_str += ",eoc={:.2f}".format(eoc_order[order])
+        if problem_type == "well-posed":
+            for order,lstyle in zip([1,2,3],['solid','dashed','dotted']): 
+                tmp_str = "$\mathcal{{O}}(h^{0})$".format(order+1)
+                plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**(order+1))/( h_order[order][0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
+        if problem_type == "ill-posed":
+            for order,lstyle in zip([1],['solid','dashed','dotted']):
+                tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
+                plt.loglog(h_order[order], l2_errors_order[order+2][0]*(h_order[order]**(order))/( h_order[order+2][0]**(order)) ,label=tmp_str,linestyle=lstyle,color='gray')
+                #aeoc = eoc_order[order]
+                #pow_a = "{:.2f}".format(order)
+                #tmp_str = "eoc = $".format(pow_a)
+                #plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**aeoc)/( h_order[order][0]**aeoc) ,label=tmp_str,linestyle=lstyle,color='gray')
+
+        plt.xlabel("~h")
+        plt.ylabel("L2-error")
+        plt.legend()
+        plt.savefig("L2-error-nonconvex-oscillatory-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
+        #plt.title("L2-error")
+        plt.show()
+
+
 #RunProblemConvexGaussian(kk=1)
 #RunProblemConvexGaussian(kk=6)
 
@@ -1416,8 +1598,11 @@ def RunProblemNonConvexOscillatoryStabSweep(kk):
 #RunProblemConvexOscillatoryKhscaling()
 
 #RunProblemConvexOscillatoryStabSweep(kk=6)
+#RunProblemNonConvexOscillatoryStabSweep(kk=6)
 
-RunProblemNonConvexOscillatoryStabSweep(kk=6)
+
+RunProblemNonConvexOscillatoryGradientTikhnovStab(kk=4)
+
 
 #RunProblemNonConvexOscillatory(kk=4,apgamma=1e-4,apalpha=1e-2)
 #RunProblemNonConvexOscillatory(kk=4,apgamma=1e-5,apalpha=1e-2)
