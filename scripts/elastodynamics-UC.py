@@ -126,6 +126,9 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
         minus_ind = fem.Function(Q_ind)
         minus_ind.interpolate(problem.minus_Ind)
 
+    #problem.lam = 0
+    problem.mu = 1
+
     def sigma(u):
         return 2*problem.mu*epsilon(u) + problem.lam * ufl.nabla_div(u) * ufl.Identity(u.geometric_dimension()) 
     Lu = lambda u : -ufl.nabla_div(sigma(u)) - problem.rho *u
@@ -183,7 +186,11 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
                  + ufl.inner(sigma(v),epsilon(z)) * ufl.dx - problem.rho * ufl.inner(v,z) * dx - ufl.inner( ufl.nabla_grad(z), ufl.nabla_grad(w)) * dx 
                  +  ufl.inner(sigma(u),epsilon(w)) * ufl.dx - problem.rho * ufl.inner(u,w) * dx
                  )
-        A = fem.petsc.assemble_matrix(aa, [])
+        #aa = fem.form( 
+        #         + ufl.inner(sigma(v),epsilon(z)) * ufl.dx - problem.rho * ufl.inner(v,z) * dx - ufl.inner( ufl.nabla_grad(z), ufl.nabla_grad(w)) * dx 
+        #         +  ufl.inner(sigma(u),epsilon(w)) * ufl.dx - problem.rho * ufl.inner(u,w) * dx
+        #         )
+        A = fem.petsc.assemble_matrix(aa, bcs)
         A.assemble()
    
         Ainv = PETSc.KSP().create(msh.comm)
@@ -205,7 +212,8 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
 
         eigensolver.setST(shift)
         eigensolver.setOperators(A)
-        eigensolver.setTarget(1e-10)
+        #eigensolver.setTarget(1e-10)
+        eigensolver.setTarget(1e-12)
         eigensolver.setWhichEigenpairs(SLEPc.EPS.Which.TARGET_REAL)
         eigensolver.setType('krylovschur')
         eigensolver.setFromOptions()
@@ -540,11 +548,12 @@ def RunProblemNonConvexGaussian(kk,perturb_theta=None):
                 plt.legend()
                 plt.show()
 
-def RunProblemNonConvexOscillatory(kk,perturb_theta=None):
+def RunProblemNonConvexOscillatory(kk,perturb_theta=None,compute_cond=False):
     
     orders = [1,2,3] 
     #ls_mesh = get_mesh_hierarchy_nonconvex(6)
-    ls_mesh = get_mesh_hierarchy_nonconvex(6)
+    #ls_mesh = get_mesh_hierarchy_nonconvex(6)
+    ls_mesh = get_mesh_hierarchy_nonconvex(5)
     refsol = get_reference_sol("oscillatory",kk=kk)
     elastic_nonconvex.rho = kk**2
     elastic_nonconvex.mu = 1.0
@@ -561,17 +570,21 @@ def RunProblemNonConvexOscillatory(kk,perturb_theta=None):
             #print(name_str)
             print("Computing for order = {0}".format(order))
             if kk == 1:
-                errors_order = ConvergenceStudy(elastic_nonconvex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-4/kk**4,name_str = name_str,compute_cond=False)
+                errors_order = ConvergenceStudy(elastic_nonconvex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-4/kk**4,name_str = name_str,compute_cond=compute_cond)
             else:
-                errors_order = ConvergenceStudy(elastic_nonconvex,ls_mesh[:-order],refsol,order=order,pgamma=10**(2+order)*pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-4/kk**4,name_str = name_str,compute_cond=False)
+                errors_order = ConvergenceStudy(elastic_nonconvex,ls_mesh[:-order],refsol,order=order,pgamma=10**(2+order)*pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-4/kk**4,name_str = name_str,compute_cond=compute_cond)
             #errors_order = ConvergenceStudy(elastic_nonconvex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-1,name_str = name_str)
             print(errors_order)
             
             eoc = [ log(errors_order["L2-error-u-uh-B"][i-1]/errors_order["L2-error-u-uh-B"][i])/log(2) for i in range(1,len(errors_order["L2-error-u-uh-B"]))]
-            print("eoc = ", eoc)
+            print("L2-error eoc = ", eoc)
             ndofs = np.array(errors_order["ndof"]) 
             h_order = order/ndofs**(1/2)
-            
+
+            if compute_cond:
+                eoc = [ log(errors_order["cond"][i-1]/errors_order["cond"][i])/log(2) for i in range(1,len(errors_order["cond"]))]
+                print("cond eoc = ", eoc)
+
             if MPI.COMM_WORLD.rank == 0:
                 plt.loglog(h_order, errors_order["L2-error-u-uh-B"] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
                 tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
@@ -1076,9 +1089,9 @@ def RunProblemNonConvexOscillatoryGradTikhStab(kk,perturb_theta=None):
 #RunProblemConvexOscillatory(kk=1)
 #RunProblemConvexOscillatory(kk=6)
 #RunProblemConvexGaussian(kk=6,perturb_theta=None)
-#RunProblemNonConvexOscillatory(kk=4,perturb_theta=None)
+RunProblemNonConvexOscillatory(kk=1,perturb_theta=None,compute_cond=True)
 
-RunProblemNonConvexOscillatoryGradTikhStab(kk=4,perturb_theta=None)
+#RunProblemNonConvexOscillatoryGradTikhStab(kk=4,perturb_theta=None)
 
 #RunProblemConvexOscillatoryStabSweep(kk=1)
 #RunProblemConvexOscillatoryStabSweep(kk=6)
