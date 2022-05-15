@@ -127,7 +127,7 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
         minus_ind.interpolate(problem.minus_Ind)
 
     #problem.lam = 0
-    problem.mu = 1
+    #problem.mu = 1
 
     def sigma(u):
         return 2*problem.mu*epsilon(u) + problem.lam * ufl.nabla_div(u) * ufl.Identity(u.geometric_dimension()) 
@@ -455,7 +455,7 @@ def RunProblemConvexGaussian(kk,perturb_theta=None):
                 plt.legend()
                 plt.show()
 
-def RunProblemConvexOscillatory(kk,perturb_theta=None):
+def RunProblemConvexOscillatory(kk,perturb_theta=None,compute_cond=True):
     orders = [1,2,3] 
     ls_mesh = get_mesh_hierarchy(6)
     refsol = get_reference_sol("oscillatory",kk=kk)
@@ -471,7 +471,7 @@ def RunProblemConvexOscillatory(kk,perturb_theta=None):
             #print(name_str)
             if MPI.COMM_WORLD.rank == 0:
                 print("Computing for order = {0}".format(order))
-            errors_order = ConvergenceStudy(elastic_convex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma/order**2,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-4/kk**4,name_str = name_str)
+            errors_order = ConvergenceStudy(elastic_convex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma/order**2,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-4/kk**4,name_str = name_str,compute_cond=compute_cond)
             #print(errors_order)
             
             eoc = [ log(errors_order["L2-error-u-uh-B"][i-1]/errors_order["L2-error-u-uh-B"][i])/log(2) for i in range(1,len(errors_order["L2-error-u-uh-B"]))]
@@ -479,6 +479,10 @@ def RunProblemConvexOscillatory(kk,perturb_theta=None):
                 print("l2-norm eoc = ", eoc)
             ndofs = np.array(errors_order["ndof"]) 
             h_order = order/ndofs**(1/2) 
+            
+            if compute_cond:
+                eoc = [ log(errors_order["cond"][i-1]/errors_order["cond"][i])/log(2) for i in range(1,len(errors_order["cond"]))]
+                print("cond eoc = ", eoc)
             
             if MPI.COMM_WORLD.rank == 0:
                 plt.loglog(h_order, errors_order["s-norm"] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
@@ -630,9 +634,9 @@ def RunProblemJump(kk=1,apgamma=1e-1,apalpha=1e-1):
     #order = 3
     elastic_convex.rho = kk**2
     elastic_convex.lam = 1.25
-    ls_mesh = get_mesh_hierarchy_fitted_disc(5,eta=eta)
-    #mu_plus = 2
+    ls_mesh = get_mesh_hierarchy_fitted_disc(6,eta=eta)
     mu_plus = 1
+    #mu_plus = 1
     mu_minus = 2
     refsol,rhs = get_reference_sol(type_str="jump",kk=kk,eta=eta,mu_plus=mu_plus,mu_minus=mu_minus,lam=elastic_convex.lam)
     def mu_Ind(x):
@@ -861,7 +865,8 @@ def RunProblemConvexOscillatoryStabSweep(kk):
     palpha = ScalarType(1e-1)
     #kks = np.linspace(1,20,6)
     #kks = [1+2*j for j in range(3)]
-    pxs = [1e-14,1e-13,1e-12,1e-11,1e-10,1e-9,1e-8,1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1e0,1e1]
+    #pxs = [1e-14,1e-13,1e-12,1e-11,1e-10,1e-9,1e-8,1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1e0,1e1]
+    pxs = [1e-12,1e-11,1e-10,1e-9,1e-8,1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1e0,1e1]
     #pxs = [1e-13,1e-11,1e-9,1e-7,1e-5,1e-3,1e-1,1e1]
     #pxs = [1e-12,1e-3,1e0]
     pxs_np = np.array(pxs)
@@ -1083,13 +1088,12 @@ def RunProblemNonConvexOscillatoryGradTikhStab(kk,perturb_theta=None):
                 plt.show()
 
 
-# pgamma = 1e-5/kk**2 , pGLS = 1e-4/kk**4
- 
+# pgamma = 1e-5/kk**2 , pGLS = 1e-4/kk**4 
 # Runs for draft
 #RunProblemConvexOscillatory(kk=1)
-#RunProblemConvexOscillatory(kk=6)
+#RunProblemConvexOscillatory(kk=6,compute_cond=True)
 #RunProblemConvexGaussian(kk=6,perturb_theta=None)
-RunProblemNonConvexOscillatory(kk=1,perturb_theta=None,compute_cond=True)
+#RunProblemNonConvexOscillatory(kk=4,perturb_theta=None,compute_cond=True)
 
 #RunProblemNonConvexOscillatoryGradTikhStab(kk=4,perturb_theta=None)
 
@@ -1103,7 +1107,7 @@ RunProblemNonConvexOscillatory(kk=1,perturb_theta=None,compute_cond=True)
 #print("myrank = ",MPI.COMM_WORLD.rank)
 #ls_mesh = get_mesh_hierarchy_nonconvex(1,init_h_scale=1.0)
 
-#RunProblemJump(kk=6,apgamma=1e-3,apalpha=1e-0)
+RunProblemJump(kk=1,apgamma=1e-4,apalpha=1e-4)
 
 
 # old stuff
