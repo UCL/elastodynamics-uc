@@ -54,10 +54,11 @@
     %width=9cm,
     %restrict y to domain=-4e2:4e2,
     %xtick={0,2e3,4e3,6e3,8e3,10e3,12e3,14e3},
+    ytick={1e8,1e10,1e12,1e14},
     xlabel= {ndof},
-    legend pos = south east,
+    legend pos = outer north east,
     %x label style={at={(axis description cs:0.575,-0.15)},anchor=east},
-    title = { Condition number },
+    title = { Condition number, non-convex, $k=1$  },
 	]
 
     \addplot[red,very thick,mark=*] 
@@ -67,16 +68,18 @@
     \addplot[green!70!black,very thick,mark=x]  
    	table[x=ndof,y=cond] {../data/Non-Convex-Oscillatory-ill-posed-k1-order3.dat}; 
     \addplot[gray,dashed,thick] 
-	table[mark=none,x=ndof,y expr ={3e1/ (\thisrowno{10}* \thisrowno{10}) }] {../data/Non-Convex-Oscillatory-ill-posed-k1-order1.dat}; 
-    %\addplot[gray,dotted,thick,forget plot] 
+	table[mark=none,x=ndof,y expr ={7e1/ (\thisrowno{10}* \thisrowno{10} * \thisrowno{10} * \thisrowno{10}    ) }] {../data/Non-Convex-Oscillatory-ill-posed-k1-order1.dat}; 
+    \addplot[gray,dotted,thick] 
+	table[mark=none,x=ndof,y expr ={3e1/ ( \thisrowno{10}* \thisrowno{10} * \thisrowno{10} * \thisrowno{10} * \thisrowno{10}  ) }] {../data/Non-Convex-Oscillatory-ill-posed-k1-order1.dat}; 
+   %\addplot[gray,dotted,thick,forget plot] 
    % 	table[mark=none,x=ndof,y expr ={6e+1*\thisrowno{10}*\thisrowno{10}}] {../data/Non-Convex-Oscillatory-ill-posed-k1-order2.dat}; 
     %\addplot[gray,dashdotted,thick,forget plot] 
    %   	table[mark=none,x=ndof,y expr ={5e+2*\thisrowno{10}*\thisrowno{10}*\thisrowno{10}}] {../data/Non-Convex-Oscillatory-ill-posed-k1-order3.dat}; 
     %\addplot[gray,dashdotted,thick,forget plot] 
     %	table[mark=none,x=ndof,y expr ={9e+2*\thisrowno{10}*\thisrowno{10}*\thisrowno{10}}] {../data/Convex-Oscillatory-ill-posed-k6-order1.dat}; 
     
-    \legend{$p=1$,$p=2$,$p=3$, $\mathcal{O}(h^{-2})$} 	    
- 
+    \legend{$p=1$,$p=2$,$p=3$, $\mathcal{O}(h^{-4})$, $\mathcal{O}(h^{-5})$ } 	    
+    
     
     \end{groupplot}
 \end{tikzpicture}

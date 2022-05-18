@@ -1,0 +1,133 @@
+\documentclass[tikz]{standalone}
+\usetikzlibrary{spy,shapes,shadows,calc,pgfplots.groupplots}
+\usepackage{amsmath}
+\usepackage{physics} 
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.3}
+\usepackage{amsmath}
+\DeclareFontFamily{OT1}{pzc}{}
+\DeclareFontShape{OT1}{pzc}{m}{it}{<-> s * [1.10] pzcmi7t}{}
+\DeclareMathAlphabet{\mathpzc}{OT1}{pzc}{m}{it}
+\newcommand{\ddtn}{\operatorname{dtn}}
+
+\pgfplotsset{
+  legend style = {font=\small}
+}
+
+\begin{document}
+\begin{tikzpicture}[scale = 0.8]
+
+%\begin{axis}[
+\begin{groupplot}[
+    group style={
+        group name=dtn,
+        group size=2 by 1,
+        %xticklabels at=edge bottom,
+        horizontal sep=25pt,
+        vertical sep=40pt,
+   },
+   %name = dtnplot,
+   height = 5cm,
+   width = 6.5cm,
+   every axis plot/.append style={thick},
+   axis y line*=left,
+   legend pos = south east,
+   %xmin = 0,
+   %xmax = 11000,
+   %ymin = -20,
+   %ymax = 20,
+   %restrict y to domain=-1e2:1e2,
+   %label style={at={(axis description cs:0.5,-0.08)},anchor=north},
+   %every x tick scale label/.style={at={(xticklabel cs:0.925)},anchor=south west},
+   %x label style={at={(axis description cs:0.975,0.085)},anchor=east},
+   %xlabel= { $\lambda$},
+   ]
+    \nextgroupplot[ 
+    ymode=log,
+    xmode=log,
+    %xmin=0,xmax=1.6e4,
+    %xtick={25, 125, 250, 500, 800, 1000},
+    %axis x line*=middle,
+    %axis y line=middle, 
+    %ymin = -350,
+    %ymax = 350,
+    %width=9cm,
+    %restrict y to domain=-4e2:4e2,
+    %xtick={0,2e3,4e3,6e3,8e3,10e3,12e3,14e3},
+    xlabel= {ndof},
+    legend pos = south west,
+    %x label style={at={(axis description cs:0.575,-0.15)},anchor=east},
+    title = { $ \lVert u - u_h \rVert_{ [L^2(B)]^d } /  \lVert u  \rVert_{ [L^2(B)]^d }   $ },
+	]
+
+    \addplot[red,very thick,mark=*] 
+   	table[x=ndof,y=L2-error-u-uh-B-plus] {../data/SplitGeom-ill-posed-k6-order1.dat}; 
+    \addplot[red,very thick,mark=*,dashed,forget plot] 
+   	table[x=ndof,y=L2-error-u-uh-B-minus] {../data/SplitGeom-ill-posed-k6-order1.dat}; 
+    \addplot[blue,very thick,mark=triangle]  
+	table[x=ndof,y=L2-error-u-uh-B-plus] {../data/SplitGeom-ill-posed-k6-order2.dat}; 
+    \addplot[blue,very thick,mark=triangle,dashed,forget plot]  
+	table[x=ndof,y=L2-error-u-uh-B-minus] {../data/SplitGeom-ill-posed-k6-order2.dat}; 
+    \addplot[green!70!black,very thick,mark=x]  
+   	table[x=ndof,y=L2-error-u-uh-B-plus] {../data/SplitGeom-ill-posed-k6-order3.dat}; 
+    \addplot[green!70!black,very thick,mark=x,dashed, forget plot]  
+   	table[x=ndof,y=L2-error-u-uh-B-minus] {../data/SplitGeom-ill-posed-k6-order3.dat}; 
+    \addplot[gray,dashed,thick,forget plot] 
+   	table[mark=none,x=ndof,y expr ={9e-0*\thisrowno{1}}] {../data/SplitGeom-ill-posed-k6-order1.dat}; 
+    \addplot[gray,dotted,thick,forget plot] 
+   	table[mark=none,x=ndof,y expr ={6e+1*\thisrowno{1}*\thisrowno{1}}] {../data/SplitGeom-ill-posed-k6-order2.dat}; 
+    \addplot[gray,dashdotted,thick,forget plot] 
+   	table[mark=none,x=ndof,y expr ={5e+2*\thisrowno{1}*\thisrowno{1}*\thisrowno{1}}] {../data/SplitGeom-ill-posed-k6-order3.dat}; 
+    %\addplot[gray,dashdotted,thick,forget plot] 
+    %	table[mark=none,x=ndof,y expr ={9e+2*\thisrowno{10}*\thisrowno{10}*\thisrowno{10}}] {../data/Convex-Oscillatory-ill-posed-k6-order1.dat}; 
+    
+    \legend{$p=1$,$p=2$,$p=3$ } 	    
+ 
+    \nextgroupplot[ 
+    ymode=log,
+    xmode=log,
+    %xmin=0,xmax=1.6e4,
+    %xtick={25, 125, 250, 500, 800, 1000},
+    %axis x line*=middle,
+    %axis y line=middle, 
+    %ymin = -350,
+    %ymax = 350,
+    %width=9cm,
+    %restrict y to domain=-4e2:4e2,
+    %xtick={0,2e3,4e3,6e3,8e3,10e3,12e3,14e3},
+    xlabel= {ndof},
+    %x label style={at={(axis description cs:0.575,-0.15)},anchor=east},
+    legend pos = south west,
+    title = { $ \lVert (u_h - \Pi_h u, z_h) \rVert_s $ },
+    ]
+
+    \addplot[red,very thick,mark=*] 
+   	table[x=ndof,y=s-norm] {../data/SplitGeom-ill-posed-k6-order1.dat}; 
+    \addplot[blue,very thick,mark=triangle]  
+	table[x=ndof,y=s-norm] {../data/SplitGeom-ill-posed-k6-order2.dat}; 
+    \addplot[green!70!black,very thick,mark=x]  
+   	table[x=ndof,y=s-norm] {../data/SplitGeom-ill-posed-k6-order3.dat}; 
+    \addplot[gray,dashed,thick,forget plot] 
+   	table[mark=none,x=ndof,y expr ={9e-0*\thisrowno{1}}] {../data/SplitGeom-ill-posed-k6-order1.dat}; 
+    \addplot[gray,dotted,thick,forget plot] 
+   	table[mark=none,x=ndof,y expr ={6e+1*\thisrowno{1}*\thisrowno{1}}] {../data/SplitGeom-ill-posed-k6-order2.dat}; 
+    \addplot[gray,dashdotted,thick,forget plot] 
+   	table[mark=none,x=ndof,y expr ={5e+2*\thisrowno{1}*\thisrowno{1}*\thisrowno{1}}] {../data/SplitGeom-ill-posed-k6-order3.dat}; 
+    
+    \legend{$ \mathcal{O}(h)$ , $\mathcal{O}(h^2)$, $\mathcal{O}(h^3)$  } 	    
+    
+    \end{groupplot}
+\end{tikzpicture}
+\end{document}
+
+
+
+
+
+
+
+
+
+
+
+
