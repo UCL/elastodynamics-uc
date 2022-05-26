@@ -17,6 +17,46 @@ from petsc4py.PETSc import ScalarType
 GM = GhostMode.shared_facet
 #GM = GhostMode.none
 
+
+def draw_mesh_tikz(mesh,name="dummy.tex"):
+    
+    help(mesh.geometry)
+    #for coord in mesh.geometry.x:
+    #    print("coord = {0}, coord[0] = {1}".format(coord,coord[0]))
+    
+    '''
+    rainbow = ["cyan","white"]
+    cell_color = "green!70!black"
+    file = open("{0}.tex".format(name),"w+")
+    file.write("\\documentclass{standalone} \n")
+    file.write("\\usepackage{xr} \n")
+    file.write("\\usepackage{tikz} \n")
+    file.write("\\usepackage{xcolor} \n")
+    file.write("\\usepackage{} \n")
+    file.write("\\usetikzlibrary{shapes,arrows,shadows,snakes,calendar,matrix,spy,backgrounds,folding,calc,positioning,patterns} \n")
+    file.write("\\begin{document} \n")
+    file.write("\\begin{tikzpicture}[scale = 1.0] \n")
+    ddx = 10
+
+    for el in decomp.fes.Elements():
+        for j in range(len(decomp.layer2el)):
+            #for j in [6,7,8,9,10,11,12]:
+            if el.nr in decomp.layer2el[j]:
+                coords = []
+                for vert in el.vertices:
+                    vx,vy,vz = decomp.mesh.ngmesh.Points()[vert.nr+1].p
+                    coords.append((ddx*vx,ddx*vy))
+                if len(coords) == 3:
+                    file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=1] {1} -- {2} -- {3} -- cycle; \n".format(rainbow[j % 2],coords[0],coords[1],coords[2] ))
+                if len(coords) == 4:
+                    file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=1] {1} -- {2} -- {3} -- {4} -- cycle; \n".format(rainbow[j % 2],coords[0],coords[1],coords[2],coords[3]))
+
+    file.write("\\end{tikzpicture} \n")
+    file.write("\\end{document} \n")
+    file.close()
+    '''
+
+
 def create_initial_mesh_convex(init_h_scale=1.0):
 
     gmsh.initialize()
@@ -228,8 +268,8 @@ def get_mesh_hierarchy(n_ref,init_h_scale=1.0):
         mesh_hierarchy.append(mesh) 
     return mesh_hierarchy
 
-'''
-ls_mesh = get_mesh_hierarchy(6)
+
+ls_mesh = get_mesh_hierarchy(1)
 tol = 1e-12
 x_l = 0.1-tol
 x_r = 0.9+tol
@@ -261,6 +301,8 @@ def B_Ind(x):
     values[rest_coords] = np.full(sum(rest_coords), 0)
     return values
 
+draw_mesh_tikz(ls_mesh[0])
+
 for idx,mesh in enumerate(ls_mesh):
 
     Q_ind = FunctionSpace(mesh, ("DG", 0))
@@ -276,7 +318,9 @@ for idx,mesh in enumerate(ls_mesh):
     with XDMFFile(mesh.comm, "B-ind-reflvl{0}.xdmf".format(idx), "w") as file:
         file.write_mesh(mesh)
         file.write_function(B_ind)
-'''
+
+
+
 
 #V = FunctionSpace(mesh, ("CG", 1))
 #u_bc = Function(V)

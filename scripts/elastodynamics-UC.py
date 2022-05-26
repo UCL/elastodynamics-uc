@@ -910,16 +910,20 @@ def RunProblemConvexOscillatoryStabSweep(kk,div_known=False):
             for px in pxs:
                 if param_str == "gamma-Jump":
                     pgamma = ScalarType(px)
-                    palpha = ScalarType(1e-2)
+                    palpha = ScalarType(1e-3)
+                    pGLS = ScalarType(1e-5)
                     #pGLS = ScalarType(1e-4/kk**4)
-                    pGLS = ScalarType(px)
+                    #pGLS = ScalarType(px)
                 elif param_str == "gamma-GLS":
-                    pgamma = ScalarType(1e-4/(order*kk)**2)
-                    palpha = ScalarType(1e-2)
+                    #pgamma = ScalarType(1e-4/(order*kk)**2)
+                    pgamma = ScalarType(1e-4/(order)**3.5)
+                    palpha = ScalarType(1e-3)
                     pGLS = ScalarType(px)
                 elif param_str == "alpha":
-                    pgamma = ScalarType(1e-4/(order*kk)**2)
+                    pgamma = ScalarType(1e-4/(order)**3.5)
+                    #pgamma = ScalarType(1e-4/(order*kk)**2)
                     palpha = ScalarType(px)
+                    #pGLS = ScalarType(1e-4/(order*kk)**2)
                     pGLS = ScalarType(1e-4/(order*kk)**2)
 
                 errors = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,pGLS= pGLS,compute_cond=False,div_known=div_known)
@@ -1287,12 +1291,12 @@ def RunProblemSplitGeom(kk=1,apgamma=1e-1,apalpha=1e-1,compute_cond=True ):
 
 #RunProblemNonConvexOscillatoryGradTikhStab(kk=4,perturb_theta=None)
 
-#RunProblemConvexOscillatoryStabSweep(kk=10)
+RunProblemConvexOscillatoryStabSweep(kk=1)
 #RunProblemConvexOscillatoryStabSweep(kk=6,div_known=True)
 #RunProblemConvexOscillatoryKhscaling()
 #if MPI.COMM_WORLD.rank == 0:
 
-RunProblemNonConvexOscillatoryStabSweep(kk=4)
+#RunProblemNonConvexOscillatoryStabSweep(kk=4)
 
 #print("myrank = ",MPI.COMM_WORLD.rank)
 #ls_mesh = get_mesh_hierarchy_nonconvex(1,init_h_scale=1.0)
