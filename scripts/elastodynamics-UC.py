@@ -9,6 +9,16 @@ from petsc4py.PETSc import ScalarType
 from math import pi,log
 from meshes import get_mesh_hierarchy, get_mesh_hierarchy_nonconvex,get_mesh_hierarchy_fitted_disc,get_mesh_convex,create_initial_mesh_convex
 from problems import elastic_convex, elastic_nonconvex,mu_const,lam_const,mu_var,lam_var
+from dolfinx.cpp.mesh import h as geth
+
+#def gamma_analytical(t,p=1):
+#    if p ==1:
+#        return t**2*(np.cos( ) 
+
+def get_h_max(mesh):
+    mesh.topology.create_connectivity(2, 0)
+    triangles = mesh.topology.connectivity(2, 0).array.reshape((-1, 3))
+    return geth(mesh, 2, triangles).max()
 
 def epsilon(u):
     return ufl.sym(ufl.grad(u)) # Equivalent to 0.5*(ufl.nabla_grad(u) + ufl.nabla_grad(u).T)
@@ -337,8 +347,9 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
     # 9. ndofs
     error_dict["ndof"] = ndof
     
-    # 10. h (proportional)
-    error_dict["hmax"] = order/np.array(ndof)**(1/2) 
+    # 10. h 
+    #error_dict["hmax"] = order/np.array(ndof)**(1/2) 
+    error_dict["hmax"] = get_h_max(msh)
     error_dict["ndof"] = 2*np.array(error_dict["ndof"])
 
     if problem.plus_Ind:
@@ -475,13 +486,15 @@ def RunProblemConvexOscillatory(kk,perturb_theta=None,compute_cond=True,div_know
     elastic_convex.mu = mu_var
     elastic_convex.lam = lam_var
     
-    tmp_gamma = 3e-4 
+    #tmp_gamma = 3e-4 
+    tmp_gamma = 1e-5 
     if div_known:
         tmp_gamma = 1e-3
 
 
     #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(3e-4)/kk**2,ScalarType(3e-4)/kk**2], [ ScalarType(1e-2),ScalarType(1e-2)]):
-    for add_bc,problem_type,pgamma,palpha in zip([False],["ill-posed"],[ScalarType(tmp_gamma)/kk**2], [ScalarType(1e-2)]):
+    #for add_bc,problem_type,pgamma,palpha in zip([False],["ill-posed"],[ScalarType(tmp_gamma)/kk**2], [ScalarType(1e-2)]):
+    for add_bc,problem_type,pgamma,palpha in zip([False],["ill-posed"],[ScalarType(tmp_gamma)], [ScalarType(1e-3)]):
         if MPI.COMM_WORLD.rank == 0:
             print("Considering {0} problem".format(problem_type))
         for order in orders:
@@ -493,7 +506,8 @@ def RunProblemConvexOscillatory(kk,perturb_theta=None,compute_cond=True,div_know
             if MPI.COMM_WORLD.rank == 0:
                 print("Computing for order = {0}".format(order))
              
-            errors_order = ConvergenceStudy(elastic_convex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma/order**2,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-4/kk**4,name_str = name_str,compute_cond=compute_cond,div_known=div_known)
+            #errors_order = ConvergenceStudy(elastic_convex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma/order**2,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-4/kk**4,name_str = name_str,compute_cond=compute_cond,div_known=div_known)
+            errors_order = ConvergenceStudy(elastic_convex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma/order**3.5,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=tmp_gamma/order**3.5,name_str = name_str,compute_cond=compute_cond,div_known=div_known)
             #print(errors_order)
             
             eoc = [ log(errors_order["L2-error-u-uh-B"][i-1]/errors_order["L2-error-u-uh-B"][i])/log(2) for i in range(1,len(errors_order["L2-error-u-uh-B"]))]
@@ -870,7 +884,7 @@ def RunProblemConvexOscillatoryKhscaling():
                 plt.show()
 
 
-def RunProblemConvexOscillatoryStabSweep(kk,div_known=False):
+def RunProblemConvexOscillatoryStabSweep(kk,div_known=False,compute_cond=False):
     
     orders = [1,2,3]  
     #ratio = 1/2 
@@ -900,6 +914,7 @@ def RunProblemConvexOscillatoryStabSweep(kk,div_known=False):
 
     #for add_bc,problem_type,pgamma,palpha in zip([True,False],["well-posed","ill-posed"],[ ScalarType(5e-3),ScalarType(5e-3)], [ ScalarType(1e-1),ScalarType(1e-1)] ):
     for param_str in ["gamma-Jump","gamma-GLS","alpha"]:
+    #for param_str in ["gamma-GLS","alpha"]:
         l2_errors_order = { }
         s_errors_order = { }
         cond_order = { } 
@@ -911,22 +926,23 @@ def RunProblemConvexOscillatoryStabSweep(kk,div_known=False):
                 if param_str == "gamma-Jump":
                     pgamma = ScalarType(px)
                     palpha = ScalarType(1e-3)
-                    pGLS = ScalarType(1e-5)
+                    pGLS = ScalarType(1e-12)
                     #pGLS = ScalarType(1e-4/kk**4)
                     #pGLS = ScalarType(px)
                 elif param_str == "gamma-GLS":
-                    #pgamma = ScalarType(1e-4/(order*kk)**2)
-                    pgamma = ScalarType(1e-4/(order)**3.5)
+                    #pgamma = ScalarType(1e-12)
+                    pgamma = ScalarType(1e-5/(order)**3.5)
                     palpha = ScalarType(1e-3)
                     pGLS = ScalarType(px)
                 elif param_str == "alpha":
-                    pgamma = ScalarType(1e-4/(order)**3.5)
+                    pgamma = ScalarType(1e-5/(order)**3.5)
                     #pgamma = ScalarType(1e-4/(order*kk)**2)
                     palpha = ScalarType(px)
                     #pGLS = ScalarType(1e-4/(order*kk)**2)
-                    pGLS = ScalarType(1e-4/(order*kk)**2)
+                    pGLS = ScalarType(1e-5/(order)**3.5)
+                    #pGLS = ScalarType(1e-5/(order)**3.5)
 
-                errors = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,pGLS= pGLS,compute_cond=False,div_known=div_known)
+                errors = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,pGLS= pGLS,compute_cond=compute_cond ,div_known=div_known)
                 l2_error = errors["L2-error-u-uh-B"]
                 ndof = errors["ndof"]     
                 l2_errors.append(l2_error)
@@ -1284,14 +1300,14 @@ def RunProblemSplitGeom(kk=1,apgamma=1e-1,apalpha=1e-1,compute_cond=True ):
 # pgamma = 1e-5/kk**2 , pGLS = 1e-4/kk**4 
 # Runs for draft
 #RunProblemConvexOscillatory(kk=10,compute_cond=False,div_known=False)
-#RunProblemConvexOscillatory(kk=1,compute_cond=True)
+#RunProblemConvexOscillatory(kk=6,compute_cond=True)
 #RunProblemConvexGaussian(kk=6,perturb_theta=None)
 #RunProblemNonConvexOscillatory(kk=4,perturb_theta=None,compute_cond=False,div_known=False)
 
 
 #RunProblemNonConvexOscillatoryGradTikhStab(kk=4,perturb_theta=None)
 
-RunProblemConvexOscillatoryStabSweep(kk=1)
+RunProblemConvexOscillatoryStabSweep(kk=6,compute_cond=True)
 #RunProblemConvexOscillatoryStabSweep(kk=6,div_known=True)
 #RunProblemConvexOscillatoryKhscaling()
 #if MPI.COMM_WORLD.rank == 0:

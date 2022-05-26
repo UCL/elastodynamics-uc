@@ -21,10 +21,10 @@
 \begin{groupplot}[
     group style={
         group name=dtn,
-        group size=3 by 1,
+        group size=3 by 2,
         %xticklabels at=edge bottom,
         horizontal sep=25pt,
-        vertical sep=40pt,
+        vertical sep=45pt,
    },
    %name = dtnplot,
    height = 5cm,
@@ -54,12 +54,12 @@
     %width=9cm,
     %restrict y to domain=-4e2:4e2,
     %xtick={0,2e3,4e3,6e3,8e3,10e3,12e3,14e3},
-    xlabel= { $\gamma_{\text{Jump}} = \gamma_{\text{GLS}}$},
+    xlabel= { $\gamma_{\text{Jump}}$},
     %x label style={at={(axis description cs:0.575,-0.15)},anchor=east},
     %title = {$ \gamma $},
 	]
 
-    \addplot[red,dashdotted,very thick] 
+    \addplot[red,dashed,very thick] 
    	table[mark=none,x=gamma-Jump,y=l2-order1] {../data/Convex-Oscillatory-StabSweep-gamma-Jump-kk6.dat}; 
     \addplot[blue,dotted,very thick]  
    	table[mark=none,x=gamma-Jump,y= l2-order2] {../data/Convex-Oscillatory-StabSweep-gamma-Jump-kk6.dat}; 
@@ -82,10 +82,10 @@
     xlabel= { $\gamma_{\text{GLS}}$},
     %x label style={at={(axis description cs:0.575,-0.15)},anchor=east},
     legend pos = north west,
-    %title = {$ \gamma $},
+    title = {$ \lVert u - u_h \rVert_{ [L^2(B)]^d } /  \lVert u  \rVert_{ [L^2(B)]^d }  $},
     ]
 
-    \addplot[red,dashdotted,very thick] 
+    \addplot[red,dashed,very thick] 
    	table[mark=none,x=gamma-Jump,y=l2-order1] {../data/Convex-Oscillatory-StabSweep-gamma-GLS-kk6.dat}; 
     \addplot[blue,dotted,very thick]  
    	table[mark=none,x=gamma-Jump,y= l2-order2] {../data/Convex-Oscillatory-StabSweep-gamma-GLS-kk6.dat}; 
@@ -111,12 +111,88 @@
     %title = {$ \gamma $},
     ]
 
-    \addplot[red,dashdotted,very thick] 
+    \addplot[red,dashed,very thick] 
    	table[mark=none,x=gamma-Jump,y=l2-order1] {../data/Convex-Oscillatory-StabSweep-alpha-kk6.dat}; 
     \addplot[blue,dotted,very thick]  
    	table[mark=none,x=gamma-Jump,y= l2-order2] {../data/Convex-Oscillatory-StabSweep-alpha-kk6.dat}; 
     \addplot[green!70!black,dashdotted,very thick] 
    	table[mark=none,x=gamma-Jump,y=l2-order3] {../data/Convex-Oscillatory-StabSweep-alpha-kk6.dat}; 
+    
+    \nextgroupplot[ 
+    ymode=log,
+    xmode=log,
+    %xmin=0,xmax=1.6e4,
+    %xtick={25, 125, 250, 500, 800, 1000},
+    %axis x line*=middle,
+    %axis y line=middle, 
+    %ymin = -350,
+    %ymax = 350,
+    %width=9cm,
+    %restrict y to domain=-4e2:4e2,
+    %xtick={0,2e3,4e3,6e3,8e3,10e3,12e3,14e3},
+    xlabel= { $\gamma_{\text{Jump}}$},
+    %x label style={at={(axis description cs:0.575,-0.15)},anchor=east},
+    %title = {$ \gamma $},
+	]
+
+    \addplot[red,dashed,very thick] 
+   	table[mark=none,x=gamma-Jump,y=cond-order1] {../data/Convex-Oscillatory-StabSweep-gamma-Jump-kk6.dat}; 
+    \addplot[blue,dotted,very thick]  
+   	table[mark=none,x=gamma-Jump,y=cond-order2] {../data/Convex-Oscillatory-StabSweep-gamma-Jump-kk6.dat}; 
+    \addplot[green!70!black,dashdotted,very thick] 
+   	table[mark=none,x=gamma-Jump,y=cond-order3] {../data/Convex-Oscillatory-StabSweep-gamma-Jump-kk6.dat}; 
+ 
+    
+    \nextgroupplot[ 
+    ymode=log,
+    xmode=log,
+    %xmin=0,xmax=1.6e4,
+    %xtick={25, 125, 250, 500, 800, 1000},
+    %axis x line*=middle,
+    %axis y line=middle, 
+    %ymin = -350,
+    %ymax = 350,
+    %width=9cm,
+    %restrict y to domain=-4e2:4e2,
+    %xtick={0,2e3,4e3,6e3,8e3,10e3,12e3,14e3},
+    xlabel= { $\gamma_{\text{GLS}}$},
+    %x label style={at={(axis description cs:0.575,-0.15)},anchor=east},
+    legend pos = north west,
+    title = {Condition number},
+    ]
+
+    \addplot[red,dashed,very thick] 
+   	table[mark=none,x=gamma-Jump,y=cond-order1] {../data/Convex-Oscillatory-StabSweep-gamma-GLS-kk6.dat}; 
+    \addplot[blue,dotted,very thick]  
+   	table[mark=none,x=gamma-Jump,y=cond-order2] {../data/Convex-Oscillatory-StabSweep-gamma-GLS-kk6.dat}; 
+    \addplot[green!70!black,dashdotted,very thick] 
+   	table[mark=none,x=gamma-Jump,y=cond-order3] {../data/Convex-Oscillatory-StabSweep-gamma-GLS-kk6.dat}; 
+    
+    %\legend{$p=1$,$p=2$,$p=3$ } 	    
+    
+    \nextgroupplot[ 
+    ymode=log,
+    xmode=log,
+    %xmin=0,xmax=1.6e4,
+    %xtick={25, 125, 250, 500, 800, 1000},
+    %axis x line*=middle,
+    %axis y line=middle, 
+    %ymin = -350,
+    %ymax = 350,
+    %width=9cm,
+    %restrict y to domain=-4e2:4e2,
+    %xtick={0,2e3,4e3,6e3,8e3,10e3,12e3,14e3},
+    xlabel= { $\alpha$},
+    %x label style={at={(axis description cs:0.575,-0.15)},anchor=east},
+    %title = {$ \gamma $},
+    ]
+
+    \addplot[red,dashed,very thick] 
+   	table[mark=none,x=gamma-Jump,y=cond-order1] {../data/Convex-Oscillatory-StabSweep-alpha-kk6.dat}; 
+    \addplot[blue,dotted,very thick]  
+   	table[mark=none,x=gamma-Jump,y= cond-order2] {../data/Convex-Oscillatory-StabSweep-alpha-kk6.dat}; 
+    \addplot[green!70!black,dashdotted,very thick] 
+   	table[mark=none,x=gamma-Jump,y=cond-order3] {../data/Convex-Oscillatory-StabSweep-alpha-kk6.dat}; 
     
     \end{groupplot}
 \end{tikzpicture}
