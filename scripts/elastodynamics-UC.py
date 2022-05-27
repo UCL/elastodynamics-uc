@@ -296,7 +296,9 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
     error_local = fem.assemble_scalar(L2_error_B)
     L2_norm = fem.form( B_ind*ufl.inner(ue, ue) * dx) 
     L2_local = fem.assemble_scalar(L2_norm)
-    error_L2 = np.sqrt(msh.comm.allreduce(error_local, op=MPI.SUM)) / np.sqrt(msh.comm.allreduce(L2_local, op=MPI.SUM)) 
+    error_L2_abs = np.sqrt(msh.comm.allreduce(error_local, op=MPI.SUM)) 
+    error_dict["L2-error-u-uh-B-absolute"] = error_L2_abs
+    error_L2 = error_L2_abs / np.sqrt(msh.comm.allreduce(L2_local, op=MPI.SUM)) 
     error_dict["L2-error-u-uh-B"] = error_L2 
 
     # 2. H1-semi-error-u-uh-B
@@ -404,13 +406,14 @@ def ConvergenceStudy(problem,ls_mesh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_
 
     for msh in ls_mesh:
         if perturb_theta!=None:
-            errors_msh = SolveProblem(problem = problem, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,perturb_order=order+perturb_theta,pGLS=pGLS,compute_cond=compute_cond,GradTikhStab=GradTikhStab,div_known=div_known)
+            errors_msh = SolveProblem(problem = problem, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,perturb_order=order-perturb_theta,pGLS=pGLS,compute_cond=compute_cond,GradTikhStab=GradTikhStab,div_known=div_known)
         else:
             errors_msh = SolveProblem(problem = problem, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=order==2,pGLS=pGLS,compute_cond=compute_cond,GradTikhStab=GradTikhStab,div_known=div_known)
         if MPI.COMM_WORLD.rank == 0:
             print("ndof = {0}, L2-error-u-uh-B = {1}".format(errors_msh["ndof"],errors_msh["L2-error-u-uh-B"])) 
         for error_type in errors_msh:
-            errors[error_type].append(errors_msh[error_type])
+            if error_type in errors.keys():
+                errors[error_type].append(errors_msh[error_type])
     
     # 11 reflvl 
     errors["reflvl"] = range(len(errors["hmax"])) 
@@ -499,15 +502,21 @@ def RunProblemConvexOscillatory(kk,perturb_theta=None,compute_cond=True,div_know
             print("Considering {0} problem".format(problem_type))
         for order in orders:
             if div_known:
-                name_str = "Convex-Oscillatory-{0}-k{1}-order{2}-div-known.dat".format(problem_type,kk,order)
+                if perturb_theta != None:
+                    name_str = "Convex-Oscillatory-{0}-k{1}-order{2}-div-known-theta{3}.dat".format(problem_type,kk,order,perturb_theta)
+                else:
+                    name_str = "Convex-Oscillatory-{0}-k{1}-order{2}-div-known.dat".format(problem_type,kk,order)
             else:
-                name_str = "Convex-Oscillatory-{0}-k{1}-order{2}.dat".format(problem_type,kk,order)
+                if perturb_theta != None:
+                    name_str = "Convex-Oscillatory-{0}-k{1}-order{2}-theta{3}.dat".format(problem_type,kk,order,perturb_theta)
+                else:
+                    name_str = "Convex-Oscillatory-{0}-k{1}-order{2}.dat".format(problem_type,kk,order)
             #print(name_str)
             if MPI.COMM_WORLD.rank == 0:
                 print("Computing for order = {0}".format(order))
              
             #errors_order = ConvergenceStudy(elastic_convex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma/order**2,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=1e-4/kk**4,name_str = name_str,compute_cond=compute_cond,div_known=div_known)
-            errors_order = ConvergenceStudy(elastic_convex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma/order**3.5,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=None,pGLS=tmp_gamma/order**3.5,name_str = name_str,compute_cond=compute_cond,div_known=div_known)
+            errors_order = ConvergenceStudy(elastic_convex,ls_mesh[:-order],refsol,order=order,pgamma=pgamma/order**3.5,palpha=palpha,add_bc=add_bc,export_VTK=False,rhs=None,mu_Ind=None,perturb_theta=perturb_theta,pGLS=tmp_gamma/order**3.5,name_str = name_str,compute_cond=compute_cond,div_known=div_known)
             #print(errors_order)
             
             eoc = [ log(errors_order["L2-error-u-uh-B"][i-1]/errors_order["L2-error-u-uh-B"][i])/log(2) for i in range(1,len(errors_order["L2-error-u-uh-B"]))]
@@ -815,11 +824,13 @@ def RunProblemJump(kk=1,apgamma=1e-1,apalpha=1e-1):
 def RunProblemConvexOscillatoryKhscaling():
     
     orders = [1,2] 
-    ratio = 1/2
+    #orders = [1,2,3] 
+    #ratio = 1/2
+    ratio = 1
     #kks = [1+2*j for j in range(4)]
-    kks = [1+j for j in range(7)]
-    #kks = [1+j for j in range(4)]
-    #kks = [1+j for j in range(9)]
+    kks = [1+j for j in range(10)]
+    
+    #kks = [1+j for j in range(5)]
     kks_np = np.array(kks)
     
     meshwidths = [ ratio/kk for kk in kks   ] 
@@ -830,21 +841,27 @@ def RunProblemConvexOscillatoryKhscaling():
     elastic_convex.mu = mu_const
     elastic_convex.lam = lam_const
 
-    for str_param in ["tuned","naive"]:
-        for add_bc,problem_type,pgamma,palpha,pGLS in zip([True,False],["well-posed","ill-posed"], [ ScalarType(1e-4),ScalarType(1e-4) ], 
-                                                         [ ScalarType(5e-1),ScalarType(5e-1)],[ ScalarType(1e-4),ScalarType(1e-4)]   ):
+    #for str_param in ["tuned","naive"]:
+    for str_param in ["tuned"]:
+        #for add_bc,problem_type,pgamma,palpha,pGLS in zip([True,False],["well-posed","ill-posed"], [ ScalarType(1e-4),ScalarType(1e-4) ], 
+        #                                                 [ ScalarType(5e-1),ScalarType(5e-1)],[ ScalarType(1e-4),ScalarType(1e-4)]   ):
+        for add_bc,problem_type,pgamma,palpha,pGLS in zip([True,False],["well-posed","ill-posed"], [ ScalarType(1e-5),ScalarType(1e-5) ], 
+                                                         [ ScalarType(1e-3),ScalarType(1e-3)],[ ScalarType(1e-5),ScalarType(1e-5)]   ):
             print("Considering {0} problem".format(problem_type))
             l2_errors_order = { }
             h1_semi_errors_order = { }
+            k_norm_error = { } 
             for order in orders:
                 l2_errors = []
                 h1_semi_errors = [] 
+                k_norm_errors = [] 
                 for kk,msh in zip(kks,ls_mesh):
                     print("kk = {0}".format(kk)) 
                     elastic_convex.rho = kk**2
                     refsol = get_reference_sol("oscillatory",kk=kk)
                     if str_param == "tuned":
-                        errors = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma/(order*kk)**2,palpha=palpha,add_bc=add_bc,export_VTK=False,pGLS=pGLS/kk**4)             
+                        #errors = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma/(order*kk)**2,palpha=palpha,add_bc=add_bc,export_VTK=False,pGLS=pGLS/kk**4)  
+                        errors = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma/(order)**3.5,palpha=palpha,add_bc=add_bc,export_VTK=False,pGLS=pGLS/order**3.5)             
                     else:
                         errors = SolveProblem(problem = elastic_convex, msh = msh,refsol=refsol,order=order,pgamma=pgamma,palpha=palpha,add_bc=add_bc,export_VTK=False,pGLS=pGLS)
                     l2_error = errors["L2-error-u-uh-B"]
@@ -852,29 +869,48 @@ def RunProblemConvexOscillatoryKhscaling():
                     ndof = errors["ndof"]     
                     l2_errors.append(l2_error)
                     h1_semi_errors.append(h1_semi_error)
+                    k_norm_errors.append(  kk*errors["L2-error-u-uh-B-absolute"] + errors["H1-semi-error-u-uh-B-absolute"] ) 
                 l2_errors_order[order] = l2_errors
                 h1_semi_errors_order[order] = h1_semi_errors
+                k_norm_error[order] =  k_norm_errors 
 
             if MPI.COMM_WORLD.rank == 0:
                 name_str = "Convex-Oscillatory-kh-scaling-{0}-{1}.dat".format(problem_type,str_param)
                 results = [kks_np]
                 header_str = "k "
                 for order in orders: 
-                    results.append(np.array(l2_errors_order[order],dtype=float))
-                    header_str += "l2-order{0} ".format(order)
                     results.append(np.array(h1_semi_errors_order[order],dtype=float))
-                    header_str += "h1-semi-order{0} ".format(order)
+                    header_str += "k-norm-order{0} ".format(order)
                 np.savetxt(fname ="../data/{0}".format(name_str),
                            X = np.transpose(results),
                            header = header_str,
                            comments = '')
+            
+
+            #if MPI.COMM_WORLD.rank == 0:
+            #    name_str = "Convex-Oscillatory-kh-scaling-{0}-{1}.dat".format(problem_type,str_param)
+            #    results = [kks_np]
+            #    header_str = "k "
+            #    for order in orders: 
+            #        results.append(np.array(l2_errors_order[order],dtype=float))
+            #        header_str += "l2-order{0} ".format(order)
+            #        results.append(np.array(h1_semi_errors_order[order],dtype=float))
+            #        header_str += "h1-semi-order{0} ".format(order)
+            #    np.savetxt(fname ="../data/{0}".format(name_str),
+            #               X = np.transpose(results),
+            #               header = header_str,
+            #               comments = '')
 
                 for order,lstyle in zip(orders,['solid','dashed','dotted']):
-                    plt.loglog(kks_np, l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+                    #plt.loglog(kks_np, l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+                    plt.loglog(kks_np,k_norm_error[order],'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+                
                     #tmp_str = "$\mathcal{{O}}(k^{0})$".format(order+1)
                     #plt.loglog(kks_np, 1.35*l2_errors_order[order][0]*(kks_np**(order+1))/( kks_np[0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
 
-                plt.loglog(kks_np, 1.35*l2_errors_order[1][0]*(kks_np)/( kks_np[0]) ,label="$\mathcal{O}(k)$",linestyle=lstyle,color='gray')
+                plt.loglog(kks_np, 1.35*k_norm_error[1][0]*(kks_np)/( kks_np[0]) ,label="$\mathcal{O}(k)$",linestyle=lstyle,color='gray')
+                plt.loglog(kks_np, 1.0*k_norm_error[2][0]*(kks_np**2)/( kks_np[0]**2 ) ,label="$\mathcal{O}(k^2)$",linestyle=lstyle,color='gray')
+                
                 #plt.loglog(kks_np, 1.35*l2_errors_order[2][0]*(kks_np)/( kks_np[0]) ,label="$\mathcal{O}(k)$",linestyle=lstyle,color='gray')
                 plt.xlabel("$k$")
                 plt.ylabel("L2-error")
@@ -1299,15 +1335,26 @@ def RunProblemSplitGeom(kk=1,apgamma=1e-1,apalpha=1e-1,compute_cond=True ):
 
 # pgamma = 1e-5/kk**2 , pGLS = 1e-4/kk**4 
 # Runs for draft
+# 
+# RunProblemConvexOscillatoryStabSweep(kk=6,compute_cond=True) # Figure 2
+# RunProblemConvexOscillatory(kk=6,compute_cond=True) # Figure 3
+#RunProblemConvexOscillatory(kk=1,compute_cond=False,perturb_theta=0)
+#RunProblemConvexOscillatory(kk=6,compute_cond=False,perturb_theta=0)
+#RunProblemConvexOscillatory(kk=6,compute_cond=False,perturb_theta=1)
+#RunProblemConvexOscillatory(kk=6,compute_cond=False,perturb_theta=2)
+
+
+RunProblemConvexOscillatoryKhscaling()
+
+
 #RunProblemConvexOscillatory(kk=10,compute_cond=False,div_known=False)
-#RunProblemConvexOscillatory(kk=6,compute_cond=True)
 #RunProblemConvexGaussian(kk=6,perturb_theta=None)
 #RunProblemNonConvexOscillatory(kk=4,perturb_theta=None,compute_cond=False,div_known=False)
 
 
 #RunProblemNonConvexOscillatoryGradTikhStab(kk=4,perturb_theta=None)
 
-RunProblemConvexOscillatoryStabSweep(kk=6,compute_cond=True)
+#RunProblemConvexOscillatoryStabSweep(kk=6,compute_cond=True)
 #RunProblemConvexOscillatoryStabSweep(kk=6,div_known=True)
 #RunProblemConvexOscillatoryKhscaling()
 #if MPI.COMM_WORLD.rank == 0:

@@ -20,7 +20,7 @@ GM = GhostMode.shared_facet
 
 def draw_mesh_tikz(mesh,name="dummy.tex"):
     
-    help(mesh.geometry)
+    #help(mesh.geometry)
     #for coord in mesh.geometry.x:
     #    print("coord = {0}, coord[0] = {1}".format(coord,coord[0]))
     
@@ -268,7 +268,7 @@ def get_mesh_hierarchy(n_ref,init_h_scale=1.0):
         mesh_hierarchy.append(mesh) 
     return mesh_hierarchy
 
-
+'''
 ls_mesh = get_mesh_hierarchy(1)
 tol = 1e-12
 x_l = 0.1-tol
@@ -318,7 +318,7 @@ for idx,mesh in enumerate(ls_mesh):
     with XDMFFile(mesh.comm, "B-ind-reflvl{0}.xdmf".format(idx), "w") as file:
         file.write_mesh(mesh)
         file.write_function(B_ind)
-
+'''
 
 
 
