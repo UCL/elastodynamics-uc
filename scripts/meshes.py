@@ -17,44 +17,62 @@ from petsc4py.PETSc import ScalarType
 GM = GhostMode.shared_facet
 #GM = GhostMode.none
 
-
-def draw_mesh_tikz(mesh,name="dummy.tex"):
+def DrawMeshTikz(msh,name,case_str="dummy"): 
     
-    #help(mesh.geometry)
-    #for coord in mesh.geometry.x:
-    #    print("coord = {0}, coord[0] = {1}".format(coord,coord[0]))
-    
-    '''
-    rainbow = ["cyan","white"]
-    cell_color = "green!70!black"
-    file = open("{0}.tex".format(name),"w+")
+    ddx = 10
+    file = open("../plots/{0}.tex".format(name),"w+")
     file.write("\\documentclass{standalone} \n")
     file.write("\\usepackage{xr} \n")
     file.write("\\usepackage{tikz} \n")
     file.write("\\usepackage{xcolor} \n")
-    file.write("\\usepackage{} \n")
+    file.write("\\usepackage{} \n")   
     file.write("\\usetikzlibrary{shapes,arrows,shadows,snakes,calendar,matrix,spy,backgrounds,folding,calc,positioning,patterns} \n")
     file.write("\\begin{document} \n")
     file.write("\\begin{tikzpicture}[scale = 1.0] \n")
-    ddx = 10
 
-    for el in decomp.fes.Elements():
-        for j in range(len(decomp.layer2el)):
-            #for j in [6,7,8,9,10,11,12]:
-            if el.nr in decomp.layer2el[j]:
-                coords = []
-                for vert in el.vertices:
-                    vx,vy,vz = decomp.mesh.ngmesh.Points()[vert.nr+1].p
-                    coords.append((ddx*vx,ddx*vy))
-                if len(coords) == 3:
-                    file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=1] {1} -- {2} -- {3} -- cycle; \n".format(rainbow[j % 2],coords[0],coords[1],coords[2] ))
-                if len(coords) == 4:
-                    file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=1] {1} -- {2} -- {3} -- {4} -- cycle; \n".format(rainbow[j % 2],coords[0],coords[1],coords[2],coords[3]))
-
-    file.write("\\end{tikzpicture} \n")
-    file.write("\\end{document} \n")
+    mmap = msh.topology.index_map(msh.topology.dim)
+    num_cells = mmap.size_local + mmap.num_ghosts
+    for i in range(num_cells):
+        # Get indices of cell vertices
+        vertex_global_indices = msh.topology.connectivity(msh.topology.dim, 0).links(i)
+        #print("vertex_global_indices = ", vertex_global_indices) 
+        coords = []
+        for idx in vertex_global_indices: 
+            #print("idx = {0}, vertex coord = {1}".format(idx,msh.geometry.x[idx])) 
+            coords.append(msh.geometry.x[idx])
+        file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=1] {1} -- {2} -- {3} -- cycle; \n".format("white", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+        
+        if case_str == "convex-Mihai-omega":
+            def is_in_dom(coord):
+                if coord[0] <= 0.1:
+                    return True 
+                elif coord[0] >= 0.9:
+                    return True 
+                elif coord[1] <= 0.25:
+                    return True
+                else:
+                    return False 
+            el_in_domain = np.all(np.array([is_in_dom(coord) for coord in coords ]))
+            #print("el_in_domain = ", el_in_domain)  
+            if el_in_domain:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.5] {1} -- {2} -- {3} -- cycle; \n".format("cyan", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+        
+        if case_str == "convex-Mihai-B": 
+            tol = 1e-5
+            def is_in_dom(coord):
+                if ( coord[0] >= (0.1+tol) and coord[0] <= (0.9-tol) and coord[1] >= (0.95+tol) and coord[1] <= (1.0-tol) ): 
+                    return False 
+                else:
+                    return True 
+            el_in_domain = np.all(np.array([is_in_dom(coord) for coord in coords ]))
+            #print("el_in_domain = ", el_in_domain)  
+            if el_in_domain:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.5] {1} -- {2} -- {3} -- cycle; \n".format("cyan", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+    
+    file.write("\\end{tikzpicture} \n") 
+    file.write("\\end{document} \n")           
     file.close()
-    '''
+
 
 
 def create_initial_mesh_convex(init_h_scale=1.0):
@@ -268,8 +286,13 @@ def get_mesh_hierarchy(n_ref,init_h_scale=1.0):
         mesh_hierarchy.append(mesh) 
     return mesh_hierarchy
 
+
 '''
-ls_mesh = get_mesh_hierarchy(1)
+ls_mesh = get_mesh_hierarchy(2)
+
+DrawMeshTikz(msh=ls_mesh[0],name="omega-Ind-convex-level0",case_str="convex-Mihai-omega") 
+DrawMeshTikz(msh=ls_mesh[1],name="B-Ind-convex-level1",case_str="convex-Mihai-B") 
+
 tol = 1e-12
 x_l = 0.1-tol
 x_r = 0.9+tol
@@ -301,7 +324,6 @@ def B_Ind(x):
     values[rest_coords] = np.full(sum(rest_coords), 0)
     return values
 
-draw_mesh_tikz(ls_mesh[0])
 
 for idx,mesh in enumerate(ls_mesh):
 
@@ -319,8 +341,6 @@ for idx,mesh in enumerate(ls_mesh):
         file.write_mesh(mesh)
         file.write_function(B_ind)
 '''
-
-
 
 #V = FunctionSpace(mesh, ("CG", 1))
 #u_bc = Function(V)
@@ -607,7 +627,7 @@ def get_mesh_hierarchy_fitted_disc(n_ref,eta,h_init=1.25):
         mesh_hierarchy.append(mesh) 
     return mesh_hierarchy
 
-'''
+
 eta = 0.6
 ls_mesh = get_mesh_hierarchy_fitted_disc(4,eta=0.6) 
 tol = 1e-12
@@ -656,4 +676,4 @@ for idx,mesh in enumerate(ls_mesh):
     with XDMFFile(mesh.comm, "B-ind-reflvl{0}.xdmf".format(idx), "w") as file:
         file.write_mesh(mesh)
         file.write_function(B_ind)
-'''
+
