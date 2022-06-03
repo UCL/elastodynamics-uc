@@ -16,6 +16,7 @@ from petsc4py.PETSc import ScalarType
 
 GM = GhostMode.shared_facet
 #GM = GhostMode.none
+eta = 0.6
 
 def DrawMeshTikz(msh,name,case_str="dummy"): 
     
@@ -56,6 +57,10 @@ def DrawMeshTikz(msh,name,case_str="dummy"):
             #print("el_in_domain = ", el_in_domain)  
             if el_in_domain:
                 file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.5] {1} -- {2} -- {3} -- cycle; \n".format("cyan", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            else:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.2] {1} -- {2} -- {3} -- cycle; \n".format("gray", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            file.write("\\node (RL) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .125\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\omega$}}  }} }}; \n".format(0.5*ddx,0.125*ddx))
+      
         
         if case_str == "convex-Mihai-B": 
             tol = 1e-5
@@ -68,8 +73,60 @@ def DrawMeshTikz(msh,name,case_str="dummy"):
             #print("el_in_domain = ", el_in_domain)  
             if el_in_domain:
                 file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.5] {1} -- {2} -- {3} -- cycle; \n".format("cyan", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
-    
+            else:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.2] {1} -- {2} -- {3} -- cycle; \n".format("gray", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            file.write("\\node (RL) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .125\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$B$}}  }} }}; \n".format(0.5*ddx,0.45*ddx))
+            
+        if case_str == "splitgeom-omega":
+            def is_in_dom(coord):
+                if (coord[0] <= 0.1 and coord[1] <= eta):
+                    return True 
+                elif (coord[0] >= 0.9 and coord[1] <= eta):
+                    return True 
+                elif (coord[1] <= 0.25):
+                    return True
+                else:
+                    return False 
+            el_in_domain = np.all(np.array([is_in_dom(coord) for coord in coords ]))
+            #print("el_in_domain = ", el_in_domain)  
+            if el_in_domain:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.5] {1} -- {2} -- {3} -- cycle; \n".format("cyan", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            else:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.2] {1} -- {2} -- {3} -- cycle; \n".format("gray", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            file.write("\\node (RL) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .125\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\omega$}}  }} }}; \n".format(0.5*ddx,0.125*ddx))
+
+        if case_str == "splitgeom-B":
+            tol = 1e-5
+            def is_in_Bplus(coord):
+                if ( coord[0] >= (0.1+tol) and coord[0] <= (0.9-tol) and coord[1] >= (0.95+tol)  ): 
+                    return False 
+                else:
+                    if coord[1] >= eta:
+                        return True
+                    else:
+                        return False
+            def is_in_Bminus(coord):
+                if ( coord[0] >= (0.1+tol) and coord[0] <= (0.9-tol) and coord[1] >= (0.95+tol)  ): 
+                    return False 
+                else:
+                    if coord[1] >= (eta+tol):
+                        return False
+                    else:
+                        return True
+            el_in_Bplus = np.all(np.array([is_in_Bplus(coord) for coord in coords ]))
+            el_in_Bminus = np.all(np.array([is_in_Bminus(coord) for coord in coords ]))
+            
+            if el_in_Bplus:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.5] {1} -- {2} -- {3} -- cycle; \n".format("red", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            elif el_in_Bminus: 
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.5] {1} -- {2} -- {3} -- cycle; \n".format("cyan", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            else:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.2] {1} -- {2} -- {3} -- cycle; \n".format("gray", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .125\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$B_+$}}  }} }}; \n".format(0.5*ddx,0.775*ddx))
+            file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .125\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$B_-$}}  }} }}; \n".format(0.5*ddx,0.425*ddx))
+
     file.write("\\end{tikzpicture} \n") 
+
     file.write("\\end{document} \n")           
     file.close()
 
@@ -627,11 +684,11 @@ def get_mesh_hierarchy_fitted_disc(n_ref,eta,h_init=1.25):
         mesh_hierarchy.append(mesh) 
     return mesh_hierarchy
 
-
-eta = 0.6
+'''
 ls_mesh = get_mesh_hierarchy_fitted_disc(4,eta=0.6) 
 tol = 1e-12
-
+DrawMeshTikz(msh=ls_mesh[0],name="omega-Ind-Split-level0",case_str="splitgeom-omega") 
+DrawMeshTikz(msh=ls_mesh[1],name="B-Ind-Split-level1",case_str="splitgeom-B") 
 
 def omega_Ind(x):
     
@@ -676,4 +733,4 @@ for idx,mesh in enumerate(ls_mesh):
     with XDMFFile(mesh.comm, "B-ind-reflvl{0}.xdmf".format(idx), "w") as file:
         file.write_mesh(mesh)
         file.write_function(B_ind)
-
+'''
