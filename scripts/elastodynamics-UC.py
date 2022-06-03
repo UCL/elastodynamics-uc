@@ -1340,7 +1340,6 @@ def RunProblemSplitGeom(kk=1,apgamma=1e-1,apalpha=1e-1,compute_cond=True,div_kno
             plt.show()
 
 
-
 # pgamma = 1e-5/kk**2 , pGLS = 1e-4/kk**4 
 # Runs for draft
 # 
@@ -1355,25 +1354,4 @@ def RunProblemSplitGeom(kk=1,apgamma=1e-1,apalpha=1e-1,compute_cond=True,div_kno
 #RunProblemJump(kk=6,apgamma=1e-5,apalpha=1e-3,mu_plus=2,mu_minus=1)
 #RunProblemSplitGeom(kk=1,apgamma=1e-3,apalpha=1e-5,compute_cond=False,div_known=True)
 #RunProblemSplitGeom(kk=1,apgamma=1e-3,apalpha=1e-5,compute_cond=False,div_known=False)
-
-######################################################################
-
-
-#RunProblemConvexOscillatory(kk=10,compute_cond=False,div_known=False)
-#RunProblemConvexGaussian(kk=6,perturb_theta=None)
-#RunProblemNonConvexOscillatory(kk=4,perturb_theta=None,compute_cond=False,div_known=False)
-#RunProblemNonConvexOscillatoryGradTikhStab(kk=4,perturb_theta=None)
-
-#RunProblemConvexOscillatoryStabSweep(kk=6,compute_cond=True)
-#RunProblemConvexOscillatoryStabSweep(kk=6,div_known=True)
-#RunProblemConvexOscillatoryKhscaling()
-#if MPI.COMM_WORLD.rank == 0:
-
-#RunProblemNonConvexOscillatoryStabSweep(kk=4)
-
-#print("myrank = ",MPI.COMM_WORLD.rank)
-#ls_mesh = get_mesh_hierarchy_nonconvex(1,init_h_scale=1.0)
-
-#RunProblemJump(kk=1,apgamma=1e-4,apalpha=1e-4)
-#RunProblemSplitGeom(kk=2,apgamma=1e-3,apalpha=1e-4,compute_cond=True )
 
