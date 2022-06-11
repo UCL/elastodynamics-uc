@@ -127,16 +127,28 @@ def get_reference_sol(type_str,kk=1,eta=0.6,mu_plus=2,mu_minus=1,lam=1.25,nn=5,k
             u2 = ufl.conditional( ufl.gt(x[1]-eta,0), u2_plus,u2_minus) 
             return ufl.as_vector([u1, u2])
         def jump_k_f(x):
-            f1_minus = ufl.sin(kbar*pi*x[0])*( ufl.sin(km*pi*(x[1]-eta))*( (2*mu+lam)*(kbar*pi)**2-(lam+mu)*kbar*pi*km*pi-km**2+(km*pi)**2*mu ) 
-                                            + ufl.cos(km*pi*(x[1]-eta))*( (2*mu+lam)*(kbar*pi)**2 + mu*(km*pi)**2 + (lam+mu)*km*pi*kbar*pi - km**2) )
-            f2_minus = ufl.cos(kbar*pi*x[0])*( ufl.sin(km*pi*(x[1]-eta))*( (2*mu+lam)*(km*pi)**2+(lam+mu)*kbar*pi*km*pi*-km**2+(kbar*pi)**2*mu ) 
-                                            + ufl.cos(km*pi*(x[1]-eta))*( (2*mu+lam)*(km*pi)**2 + mu*(kbar*pi)**2 - (lam+mu)*km*pi*kbar*pi - km**2 ) )
-            f1_plus = ufl.sin(kbar*pi*x[0])*( ufl.sin(kp*pi*x[1])*( (2*mu+lam)*(kbar*pi)**2*Ap_1-(lam+mu)*kbar*pi*kp*pi*Bp_2-kp**2*Ap_1+(kp*pi)**2*mu*Ap_1 ) 
-                                            + ufl.cos(kp*pi*x[1])*( (2*mu+lam)*(kbar*pi)**2*Bp_1 + mu*(kp*pi)**2*Bp_1 + (lam+mu)*kp*pi*kbar*pi*Ap_2 - kp**2*Bp_1 ) )
-            f2_plus = ufl.cos(kbar*pi*x[0])*( ufl.sin(kp*pi*x[1])*( (2*mu+lam)*(kp*pi)**2*Ap_2+(lam+mu)*kbar*pi*kp*pi*Bp_1-kp**2*Ap_2+(kbar*pi)**2*mu*Ap_2 ) 
-                                            + ufl.cos(kp*pi*x[1])*( (2*mu+lam)*(kp*pi)**2*Bp_2 + mu*(kbar*pi)**2*Bp_2 - (lam+mu)*kp*pi*kbar*pi*Ap_1 - kp**2*Bp_2) )
+            u1_plus = ufl.sin(kbar*pi*x[0])*(Ap_1*ufl.sin(kp*pi*x[1]) + Bp_1*ufl.cos(kp*pi*x[1]))
+            u1_minus = ufl.sin(kbar*pi*x[0])*(ufl.sin(km*pi*(x[1]-eta))  + ufl.cos(km*pi*(x[1]-eta)))
+            u2_plus = ufl.cos(kbar*pi*x[0])*(Ap_2*ufl.sin(kp*pi*x[1]) + Bp_2*ufl.cos(kp*pi*x[1]))
+            u2_minus = ufl.cos(kbar*pi*x[0])*(ufl.sin(km*pi*(x[1]-eta))  + ufl.cos(km*pi*(x[1]-eta)))
+            
+            f1_minus = u1_minus*((2*mu+lam)*(kbar*pi)**2 + mu*(km*pi)**2 - km**2) + (lam+mu)*km*kbar*(pi**2)*ufl.sin(kbar*pi*x[0])*(ufl.cos(km*pi*(x[1]-eta))- ufl.sin(km*pi*(x[1]-eta)))   
+            f2_minus = u2_minus*((2*mu+lam)*(km*pi)**2 + mu*(kbar*pi)**2 - km**2) + (lam+mu)*km*kbar*(pi**2)*ufl.cos(kbar*pi*x[0])*(-ufl.cos(km*pi*(x[1]-eta))+ ufl.sin(km*pi*(x[1]-eta)))  
+            f1_plus = u1_plus*((2*mu+lam)*(kbar*pi)**2 + mu*(kp*pi)**2 - kp**2) + (lam+mu)*kp*kbar*(pi**2)*ufl.sin(kbar*pi*x[0])*(Ap_2*ufl.cos(kp*pi*x[1])- Bp_2*ufl.sin(kp*pi*x[1]))    
+            f2_plus = u2_plus*( (2*mu+lam)*(kp*pi)**2+mu*(kbar*pi)**2-kp**2)  + (lam+mu)*kp*kbar*(pi**2)*ufl.cos(kbar*pi*x[0])*(-Ap_1*ufl.cos(kp*pi*x[1]) + Bp_1*ufl.sin(kp*pi*x[1]))  
             f1 = ufl.conditional( ufl.gt(x[1]-eta,0), f1_plus,f1_minus) 
             f2 = ufl.conditional( ufl.gt(x[1]-eta,0), f2_plus,f2_minus) 
+
+            #f1_minus = ufl.sin(kbar*pi*x[0])*( ufl.sin(km*pi*(x[1]-eta))*( (2*mu+lam)*(kbar*pi)**2-(lam+mu)*kbar*pi*km*pi-km**2+(km*pi)**2*mu ) 
+            #                                + ufl.cos(km*pi*(x[1]-eta))*( (2*mu+lam)*(kbar*pi)**2 + mu*(km*pi)**2 + (lam+mu)*km*pi*kbar*pi - km**2) )
+            #f2_minus = ufl.cos(kbar*pi*x[0])*( ufl.sin(km*pi*(x[1]-eta))*( (2*mu+lam)*(km*pi)**2+(lam+mu)*kbar*pi*km*pi*-km**2+(kbar*pi)**2*mu ) 
+            #                                + ufl.cos(km*pi*(x[1]-eta))*( (2*mu+lam)*(km*pi)**2 + mu*(kbar*pi)**2 - (lam+mu)*km*pi*kbar*pi - km**2 ) )
+            #f1_plus = ufl.sin(kbar*pi*x[0])*( ufl.sin(kp*pi*x[1])*( (2*mu+lam)*(kbar*pi)**2*Ap_1-(lam+mu)*kbar*pi*kp*pi*Bp_2-kp**2*Ap_1+(kp*pi)**2*mu*Ap_1 ) 
+            #                                + ufl.cos(kp*pi*x[1])*( (2*mu+lam)*(kbar*pi)**2*Bp_1 + mu*(kp*pi)**2*Bp_1 + (lam+mu)*kp*pi*kbar*pi*Ap_2 - kp**2*Bp_1 ) )
+            #f2_plus = ufl.cos(kbar*pi*x[0])*( ufl.sin(kp*pi*x[1])*( (2*mu+lam)*(kp*pi)**2*Ap_2+(lam+mu)*kbar*pi*kp*pi*Bp_1-kp**2*Ap_2+(kbar*pi)**2*mu*Ap_2 ) 
+            #                                + ufl.cos(kp*pi*x[1])*( (2*mu+lam)*(kp*pi)**2*Bp_2 + mu*(kbar*pi)**2*Bp_2 - (lam+mu)*kp*pi*kbar*pi*Ap_1 - kp**2*Bp_2) )
+            #f1 = ufl.conditional( ufl.gt(x[1]-eta,0), f1_plus,f1_minus) 
+            #f2 = ufl.conditional( ufl.gt(x[1]-eta,0), f2_plus,f2_minus) 
             return ufl.as_vector([f1, f2])
         return jump_k_sol,jump_k_f
     
@@ -1419,8 +1431,8 @@ def RunProblemJumpWavenumber(km=1,kp=1,apgamma=1e-1,apalpha=1e-1,eta=0.6):
     #order = 3
     elastic_convex.lam = lam_const
     elastic_convex.mu = mu_const
-    ls_mesh = get_mesh_hierarchy_fitted_disc(5,eta=eta)
-    refsol,rhs = get_reference_sol(type_str="jump-wavenumber",eta=0.6,lam=1.25,km=km,kp=kp,mu=mu_const(1))
+    ls_mesh = get_mesh_hierarchy_fitted_disc(6,eta=eta)
+    refsol,rhs = get_reference_sol(type_str="jump-wavenumber",eta=0.6,lam=lam_const(1),km=km,kp=kp,mu=mu_const(1))
     
     def k_Ind(x):
         values = np.zeros(x.shape[1],dtype=ScalarType)
@@ -1461,8 +1473,8 @@ def RunProblemJumpWavenumber(km=1,kp=1,apgamma=1e-1,apalpha=1e-1,eta=0.6):
             L2_error_B_minus = [] 
             ndofs = [] 
             for msh in ls_mesh[:-order]:
-                #errors = SolveProblem(problem=elastic_convex,msh=msh,refsol=refsol,order=order,pgamma=pgamma/order**3.5,palpha=palpha,add_bc=add_bc,export_VTK=True,rhs=rhs,k_Ind=k_Ind,pGLS=pGLS/order**3.5)
-                errors = SolveProblem(problem=elastic_convex,msh=msh,refsol=refsol,order=order,pgamma=pgamma/order**3.5,palpha=palpha,add_bc=add_bc,export_VTK=True,rhs=None,k_Ind=k_Ind,pGLS=pGLS/order**3.5)
+                errors = SolveProblem(problem=elastic_convex,msh=msh,refsol=refsol,order=order,pgamma=pgamma/order**3.5,palpha=palpha,add_bc=add_bc,export_VTK=True,rhs=rhs,k_Ind=k_Ind,pGLS=pGLS/order**3.5)
+                #errors = SolveProblem(problem=elastic_convex,msh=msh,refsol=refsol,order=order,pgamma=pgamma/order**3.5,palpha=palpha,add_bc=add_bc,export_VTK=True,rhs=None,k_Ind=k_Ind,pGLS=pGLS/order**3.5)
                 l2_error = errors["L2-error-u-uh-B"]
                 ndof = errors["ndof"]  
                 print("ndof = {0}, L2-error-B = {1}".format(ndof,l2_error))
@@ -1575,4 +1587,4 @@ def RunProblemJumpWavenumber(km=1,kp=1,apgamma=1e-1,apalpha=1e-1,eta=0.6):
 #RunProblemConvexOscillatory(kk=6,compute_cond=False,perturb_theta=0)
 #RunProblemJump(kk=6,apgamma=1e-5,apalpha=1e-3,mu_plus=2,mu_minus=1)
 #RunProblemSplitGeom(kk=1,apgamma=1e-3,apalpha=1e-5,compute_cond=False,div_known=False)
-RunProblemJumpWavenumber(km=4,kp=6,apgamma=1e-1,apalpha=1e-1,eta=0.6)
+RunProblemJumpWavenumber(km=2,kp=6,apgamma=1e-1,apalpha=1e-1,eta=0.6)
