@@ -13,6 +13,12 @@ from ufl import (SpatialCoordinate, TestFunction, TrialFunction,
 
 from mpi4py import MPI
 from petsc4py.PETSc import ScalarType
+from math import pi
+from dolfinx.io import XDMFFile, ufl_mesh_from_gmsh
+from dolfinx.cpp.io import perm_gmsh
+from dolfinx.mesh import CellType, create_mesh
+
+#help(CellType)
 
 GM = GhostMode.shared_facet
 #GM = GhostMode.none
@@ -734,3 +740,114 @@ for idx,mesh in enumerate(ls_mesh):
         file.write_mesh(mesh)
         file.write_function(B_ind)
 '''
+
+def get_mesh_inclusion(h_init=1.25,order=2): 
+    cell_type  = CellType.triangle
+    gmsh.initialize()
+    gmsh.model.add("inclm")
+    gmsh.option.setNumber("Mesh.MeshSizeFactor", h_init)
+    proc = MPI.COMM_WORLD.rank
+    bnd_marker = 1
+    lower_omega_marker = 1
+    side_left_marker = 2 
+    side_right_marker = 3
+    middle_bottom_marker = 4
+    middle_top_marker = 5
+    rest_marker = 6
+
+    #y_eta = eta-0.25
+    #y_inc = 0.95-y_eta
+    if proc == 0:
+        # We create one rectangle for each subdomain
+
+        r1 = gmsh.model.occ.addRectangle(-1.5, -1.5, 0, 3,3,tag=1)
+        r2 = gmsh.model.occ.addRectangle(-1.25, -1.25, 0, 2.5,2.75,tag=2)
+        r3 = gmsh.model.occ.cut( [(2,r1)], [(2,r2)],tag=3)
+
+        target_dom = gmsh.model.occ.addRectangle(-0.5, -0.5, 0, 1.0,1.0)
+        Bdisk = gmsh.model.occ.addDisk(0.0, 0.0, 0.0,1.0,1.0,tag=2)
+        gmsh.model.occ.synchronize()
+        remainder = gmsh.model.occ.addRectangle(-1.25, -1.25, 0, 2.5,2.75)
+        #gmsh.model.occ.fragment([(2,r1)],[(2,Bdisk) ])
+        gmsh.model.occ.fragment([(2,3)],[(2,target_dom),(2,Bdisk),(2,remainder) ])
+        
+        gmsh.model.occ.synchronize()
+
+        print(len(gmsh.model.getEntities(dim=2)))
+        
+        its = 1 
+        for surface in gmsh.model.getEntities(dim=2):
+            com = gmsh.model.occ.getCenterOfMass(surface[0], surface[1])
+            print(com)
+            gmsh.model.addPhysicalGroup(2, [surface[1]], its )
+            its +=1
+        
+        # Tag the left boundary
+        bnd_square = []
+        for line in gmsh.model.getEntities(dim=1):
+            com = gmsh.model.occ.getCenterOfMass(line[0], line[1])
+            if np.isclose(com[0], 0) or np.isclose(com[0], 1) or np.isclose(com[1], 0) or  np.isclose(com[1], 1): 
+                bnd_square.append(line[1])
+        gmsh.model.addPhysicalGroup(1, bnd_square, bnd_marker)
+        gmsh.model.mesh.generate(2)
+        #gmsh.model.mesh.setOrder(order)
+        #gmsh.write("mesh.msh")
+        #gmsh.finalize()
+
+        if cell_type == CellType.quadrilateral:
+            gmsh.model.mesh.recombine()
+        gmsh.model.mesh.setOrder(order)
+        idx, points, _ = gmsh.model.mesh.getNodes()
+        points = points.reshape(-1, 3)
+        idx -= 1
+        srt = np.argsort(idx)
+        assert np.all(idx[srt] == np.arange(len(idx)))
+        x = points[srt]
+
+        element_types, element_tags, node_tags = gmsh.model.mesh.getElements(dim=2)
+        name, dim, order, num_nodes, local_coords, num_first_order_nodes = gmsh.model.mesh.getElementProperties(
+            element_types[0])
+
+        cells = node_tags[0].reshape(-1, num_nodes) - 1
+        if cell_type == CellType.triangle:
+            gmsh_cell_id = gmsh.model.mesh.getElementType("triangle", order)
+        elif cell_type == CellType.quadrilateral:
+            gmsh_cell_id = gmsh.model.mesh.getElementType("quadrangle", order)
+        gmsh.finalize()
+
+        cells = cells[:, perm_gmsh(cell_type, cells.shape[1])]
+        msh = create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh_from_gmsh(gmsh_cell_id, x.shape[1]))
+        with XDMFFile(msh.comm, "mesh.xdmf", "w") as xdmf:
+            xdmf.write_mesh(msh)
+        return msh
+
+    '''
+    import meshio
+    def create_mesh(mesh, cell_type, prune_z=False):
+        cells = mesh.get_cells_type(cell_type)
+        cell_data = mesh.get_cell_data("gmsh:physical", cell_type)
+        points = mesh.points[:,:2] if prune_z else mesh.points
+        out_mesh = meshio.Mesh(points=points, cells={cell_type: cells}, cell_data={"name_to_read":[cell_data]})
+        return out_mesh
+
+    if proc == 0:
+        # Read in mesh
+        msh = meshio.read("mesh.msh")
+
+        # Create and save one file for the mesh, and one file for the facets
+        triangle_mesh = create_mesh(msh, "triangle", prune_z=True)
+        line_mesh = create_mesh(msh, "line", prune_z=True)
+        meshio.write("mesh.xdmf", triangle_mesh)
+        meshio.write("mt.xdmf", line_mesh)
+
+    #n_ref = 2 
+    #for i in range(n_ref): 
+
+    with XDMFFile(MPI.COMM_WORLD, "mesh.xdmf", "r") as xdmf:
+        mesh = xdmf.read_mesh(name="Grid",ghost_mode=GM)
+        ct = xdmf.read_meshtags(mesh, name="Grid")
+        mesh.topology.create_connectivity(mesh.topology.dim, mesh.topology.dim-1)
+    with XDMFFile(MPI.COMM_WORLD, "mt.xdmf", "r") as xdmf:
+        ft = xdmf.read_meshtags(mesh, name="Grid")
+    '''
+get_mesh_inclusion(h_init=1.25)
