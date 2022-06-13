@@ -14,10 +14,10 @@ from ufl import (SpatialCoordinate, TestFunction, TrialFunction,
 from mpi4py import MPI
 from petsc4py.PETSc import ScalarType
 from math import pi
-from dolfinx.io import XDMFFile, ufl_mesh_from_gmsh
+from dolfinx.io import XDMFFile, ufl_mesh_from_gmsh,extract_gmsh_geometry,extract_gmsh_topology_and_markers,cell_perm_gmsh
 from dolfinx.cpp.io import perm_gmsh
 from dolfinx.mesh import CellType, create_mesh
-
+from dolfinx.cpp import mesh as cmesh
 #help(CellType)
 
 GM = GhostMode.shared_facet
@@ -741,7 +741,30 @@ for idx,mesh in enumerate(ls_mesh):
         file.write_function(B_ind)
 '''
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def get_mesh_inclusion(h_init=1.25,order=2): 
+    gdim = 2
     cell_type  = CellType.triangle
     gmsh.initialize()
     gmsh.model.add("inclm")
@@ -757,9 +780,10 @@ def get_mesh_inclusion(h_init=1.25,order=2):
 
     #y_eta = eta-0.25
     #y_inc = 0.95-y_eta
-    if proc == 0:
+    #if proc == 0:
         # We create one rectangle for each subdomain
 
+    if MPI.COMM_WORLD.rank == 0:
         r1 = gmsh.model.occ.addRectangle(-1.5, -1.5, 0, 3,3,tag=1)
         r2 = gmsh.model.occ.addRectangle(-1.25, -1.25, 0, 2.5,2.75,tag=2)
         r3 = gmsh.model.occ.cut( [(2,r1)], [(2,r2)],tag=3)
@@ -791,63 +815,232 @@ def get_mesh_inclusion(h_init=1.25,order=2):
         gmsh.model.addPhysicalGroup(1, bnd_square, bnd_marker)
         gmsh.model.mesh.generate(2)
         #gmsh.model.mesh.setOrder(order)
-        #gmsh.write("mesh.msh")
-        #gmsh.finalize()
+        gmsh.write("mesh.msh")
+    #gmsh.finalize()
 
-        if cell_type == CellType.quadrilateral:
-            gmsh.model.mesh.recombine()
-        gmsh.model.mesh.setOrder(order)
-        idx, points, _ = gmsh.model.mesh.getNodes()
-        points = points.reshape(-1, 3)
-        idx -= 1
-        srt = np.argsort(idx)
-        assert np.all(idx[srt] == np.arange(len(idx)))
-        x = points[srt]
 
-        element_types, element_tags, node_tags = gmsh.model.mesh.getElements(dim=2)
-        name, dim, order, num_nodes, local_coords, num_first_order_nodes = gmsh.model.mesh.getElementProperties(
-            element_types[0])
+    if cell_type == CellType.quadrilateral:
+        gmsh.model.mesh.recombine()
+    gmsh.model.mesh.setOrder(order)
+    idx, points, _ = gmsh.model.mesh.getNodes()
+    #points = points[:,:2]
+    ls_points_2D = [] 
+    for i in range(len(points)):
+        if (i+1) % 3 != 0:
+            ls_points_2D.append(points[i])
+    ls_points_2D = np.array(ls_points_2D)
+    #points = points.reshape(-1, 3)
+    points =  ls_points_2D.reshape(-1, 2)
+    #print("points =", points)
+    idx -= 1
+    srt = np.argsort(idx)
+    assert np.all(idx[srt] == np.arange(len(idx)))
+    x = points[srt]
 
-        cells = node_tags[0].reshape(-1, num_nodes) - 1
-        if cell_type == CellType.triangle:
-            gmsh_cell_id = gmsh.model.mesh.getElementType("triangle", order)
-        elif cell_type == CellType.quadrilateral:
-            gmsh_cell_id = gmsh.model.mesh.getElementType("quadrangle", order)
-        gmsh.finalize()
+    element_types, element_tags, node_tags = gmsh.model.mesh.getElements(dim=2)
+    name, dim, order, num_nodes, local_coords, num_first_order_nodes = gmsh.model.mesh.getElementProperties(
+        element_types[0])
 
-        cells = cells[:, perm_gmsh(cell_type, cells.shape[1])]
-        msh = create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh_from_gmsh(gmsh_cell_id, x.shape[1]))
-        with XDMFFile(msh.comm, "mesh.xdmf", "w") as xdmf:
-            xdmf.write_mesh(msh)
-        return msh
+    cells = node_tags[0].reshape(-1, num_nodes) - 1
+    if cell_type == CellType.triangle:
+        gmsh_cell_id = gmsh.model.mesh.getElementType("triangle", order)
+    elif cell_type == CellType.quadrilateral:
+        gmsh_cell_id = gmsh.model.mesh.getElementType("quadrangle", order)
+    gmsh.finalize()
 
-    '''
-    import meshio
-    def create_mesh(mesh, cell_type, prune_z=False):
-        cells = mesh.get_cells_type(cell_type)
-        cell_data = mesh.get_cell_data("gmsh:physical", cell_type)
-        points = mesh.points[:,:2] if prune_z else mesh.points
-        out_mesh = meshio.Mesh(points=points, cells={cell_type: cells}, cell_data={"name_to_read":[cell_data]})
-        return out_mesh
+    cells = cells[:, perm_gmsh(cell_type, cells.shape[1])]
+    #print("cells.shape[1] =, ",cells.shape[1])
+    msh = create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh_from_gmsh(gmsh_cell_id, x.shape[1]))
+    #msh = create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh_from_gmsh(gmsh_cell_id,2))
+    #print("x.shape[1] =", x.shape[1])
 
-    if proc == 0:
-        # Read in mesh
-        msh = meshio.read("mesh.msh")
+    with XDMFFile(msh.comm, "mesh.xdmf", "w") as xdmf:
+        xdmf.write_mesh(msh)
+    return msh
 
-        # Create and save one file for the mesh, and one file for the facets
-        triangle_mesh = create_mesh(msh, "triangle", prune_z=True)
-        line_mesh = create_mesh(msh, "line", prune_z=True)
-        meshio.write("mesh.xdmf", triangle_mesh)
-        meshio.write("mt.xdmf", line_mesh)
+'''
+def omega_Ind_Disk(x):
+    
+    values = np.zeros(x.shape[1],dtype=ScalarType)
+    omega_coords = np.logical_or(   ( x[0] <= -1.25 )  , 
+        np.logical_or(   (x[0] >= 1.25 ), (x[1] <= -1.25)  )
+        ) 
+    rest_coords = np.invert(omega_coords)
+    values[omega_coords] = np.full(sum(omega_coords), 1.0)
+    values[rest_coords] = np.full(sum(rest_coords), 0)
+    return values
 
-    #n_ref = 2 
-    #for i in range(n_ref): 
+def B_Ind_Disk(x):
+    values = np.zeros(x.shape[1],dtype=ScalarType)
+    # Create a boolean array indicating which dofs (corresponding to cell centers)
+    # that are in each domain
+    rest_coords = np.logical_and( ( x[0] >= -0.5 ), 
+        np.logical_and(   (x[0] <= 0.5 ),
+          np.logical_and(   (x[1]>= -0.5),  (x[1]<= 0.5)  )
+        )
+      ) 
+    B_coords = np.invert(rest_coords)
+    values[B_coords] = np.full(sum(B_coords), 0.0)
+    values[rest_coords] = np.full(sum(rest_coords), 1.0)
+    return values
 
-    with XDMFFile(MPI.COMM_WORLD, "mesh.xdmf", "r") as xdmf:
-        mesh = xdmf.read_mesh(name="Grid",ghost_mode=GM)
-        ct = xdmf.read_meshtags(mesh, name="Grid")
-        mesh.topology.create_connectivity(mesh.topology.dim, mesh.topology.dim-1)
-    with XDMFFile(MPI.COMM_WORLD, "mt.xdmf", "r") as xdmf:
-        ft = xdmf.read_meshtags(mesh, name="Grid")
-    '''
-get_mesh_inclusion(h_init=1.25)
+mesh = get_mesh_inclusion(h_init=1.25) 
+Q_ind = FunctionSpace(mesh, ("DG", 0))
+B_ind  = Function(Q_ind)
+omega_ind = Function(Q_ind)
+B_ind.interpolate(B_Ind_Disk)
+omega_ind.interpolate(omega_Ind_Disk)
+
+idx = 99 
+with XDMFFile(mesh.comm, "omega-ind-reflvl{0}.xdmf".format(idx), "w") as file:
+    file.write_mesh(mesh)
+    file.write_function(omega_ind)
+
+with XDMFFile(mesh.comm, "B-ind-reflvl{0}.xdmf".format(idx), "w") as file:
+    file.write_mesh(mesh)
+    file.write_function(B_ind)
+
+import ufl
+x = ufl.SpatialCoordinate(mesh)
+a = 1.0 
+mu_plus = 1 
+mu_minus = 2 
+def mu_Ind(x):
+    values = np.zeros(x.shape[1],dtype=ScalarType)
+    upper_coords = (x[0]*x[0] + x[1]*x[1]) > a**2
+    #print("upper_coords = ", upper_coords)
+    lower_coords = np.invert(upper_coords)
+    values[upper_coords] = np.full(sum(upper_coords), mu_plus)
+    values[lower_coords] = np.full(sum(lower_coords), mu_minus)
+    return values
+
+mu = Function(Q_ind)
+mu.interpolate(mu_Ind)
+with XDMFFile(mesh.comm, "mu-jump-disk-idx{0}.xdmf".format(idx), "w") as file:
+    file.write_mesh(mesh)
+    file.write_function(mu)
+'''
+
+
+
+
+def get_mesh_inclusion_square(h_init=1.25,x_L=-1,x_R=1,y_L=-1,y_R=1): 
+    gdim = 2
+    cell_type  = CellType.triangle
+    gmsh.initialize()
+    gmsh.model.add("inclm")
+    gmsh.option.setNumber("Mesh.MeshSizeFactor", h_init)
+    proc = MPI.COMM_WORLD.rank
+    bnd_marker = 1
+    lower_omega_marker = 1
+    side_left_marker = 2 
+    side_right_marker = 3
+    middle_bottom_marker = 4
+    middle_top_marker = 5
+    rest_marker = 6
+
+
+    if MPI.COMM_WORLD.rank == 0:
+        r1 = gmsh.model.occ.addRectangle(-1.5, -1.5, 0, 3,3,tag=1)
+        r2 = gmsh.model.occ.addRectangle(-1.25, -1.25, 0, 2.5,2.75,tag=2)
+        r3 = gmsh.model.occ.cut( [(2,r1)], [(2,r2)],tag=3)
+
+        target_dom = gmsh.model.occ.addRectangle(-0.75, -0.75, 0, 1.5,1.5)
+        mu_inner = gmsh.model.occ.addRectangle(x_L, y_L, 0, x_R-x_L ,y_R-y_L)
+        gmsh.model.occ.synchronize()
+        remainder = gmsh.model.occ.addRectangle(-1.25, -1.25, 0, 2.5,2.75)
+        #gmsh.model.occ.fragment([(2,r1)],[(2,Bdisk) ])
+        gmsh.model.occ.fragment([(2,3)],[(2,target_dom),(2,mu_inner),(2,remainder) ])
+        
+        gmsh.model.occ.synchronize()
+
+        print(len(gmsh.model.getEntities(dim=2)))
+        
+        its = 1 
+        for surface in gmsh.model.getEntities(dim=2):
+            com = gmsh.model.occ.getCenterOfMass(surface[0], surface[1])
+            print(com)
+            gmsh.model.addPhysicalGroup(2, [surface[1]], its )
+            its +=1
+        
+        # Tag the left boundary
+        bnd_square = []
+        for line in gmsh.model.getEntities(dim=1):
+            com = gmsh.model.occ.getCenterOfMass(line[0], line[1])
+            if np.isclose(com[0], 0) or np.isclose(com[0], 1) or np.isclose(com[1], 0) or  np.isclose(com[1], 1): 
+                bnd_square.append(line[1])
+        gmsh.model.addPhysicalGroup(1, bnd_square, bnd_marker)
+        gmsh.model.mesh.generate(2)
+        #gmsh.model.mesh.setOrder(order)
+        gmsh.write("mesh.msh")
+    #gmsh.finalize()
+
+
+    if cell_type == CellType.quadrilateral:
+        gmsh.model.mesh.recombine()
+    order = 1
+    gmsh.model.mesh.setOrder(order)
+    idx, points, _ = gmsh.model.mesh.getNodes()
+    #points = points[:,:2]
+    ls_points_2D = [] 
+    for i in range(len(points)):
+        if (i+1) % 3 != 0:
+            ls_points_2D.append(points[i])
+    ls_points_2D = np.array(ls_points_2D)
+    #points = points.reshape(-1, 3)
+    points =  ls_points_2D.reshape(-1, 2)
+    #print("points =", points)
+    idx -= 1
+    srt = np.argsort(idx)
+    assert np.all(idx[srt] == np.arange(len(idx)))
+    x = points[srt]
+
+    element_types, element_tags, node_tags = gmsh.model.mesh.getElements(dim=2)
+    name, dim, order, num_nodes, local_coords, num_first_order_nodes = gmsh.model.mesh.getElementProperties(
+        element_types[0])
+
+    cells = node_tags[0].reshape(-1, num_nodes) - 1
+    if cell_type == CellType.triangle:
+        gmsh_cell_id = gmsh.model.mesh.getElementType("triangle", order)
+    elif cell_type == CellType.quadrilateral:
+        gmsh_cell_id = gmsh.model.mesh.getElementType("quadrangle", order)
+    gmsh.finalize()
+
+    cells = cells[:, perm_gmsh(cell_type, cells.shape[1])]
+    #print("cells.shape[1] =, ",cells.shape[1])
+    msh = create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh_from_gmsh(gmsh_cell_id, x.shape[1]))
+    #msh = create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh_from_gmsh(gmsh_cell_id,2))
+    #print("x.shape[1] =", x.shape[1])
+
+    with XDMFFile(msh.comm, "mesh.xdmf", "w") as xdmf:
+        xdmf.write_mesh(msh)
+    return msh
+'''
+x_L = -1.0
+x_R = 1.0
+y_L = -1.0
+y_R = 1.0
+mu_plus = 2.0 
+mu_minus = 1.0
+
+def mu_Ind(x):
+    values = np.zeros(x.shape[1],dtype=ScalarType)
+    inner_coords = np.logical_and( ( x[0] >= x_L ), 
+            np.logical_and(   (x[0] <= x_R ),
+              np.logical_and(   (x[1]>= y_L),  (x[1]<= y_R)  )
+            )
+          ) 
+    outer_coords = np.invert(inner_coords)
+    values[inner_coords] = np.full(sum(inner_coords), mu_plus)
+    values[outer_coords] = np.full(sum(outer_coords), mu_minus)
+    return values
+
+idx = 25
+mesh = get_mesh_inclusion_square(h_init=1.25) 
+Q_ind = FunctionSpace(mesh, ("DG", 0))
+mu = Function(Q_ind)
+mu.interpolate(mu_Ind)
+with XDMFFile(mesh.comm, "mu-jump-disk-idx{0}.xdmf".format(idx), "w") as file:
+    file.write_mesh(mesh)
+    file.write_function(mu)
+'''

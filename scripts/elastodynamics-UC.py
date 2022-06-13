@@ -8,7 +8,7 @@ from dolfinx import mesh, fem, plot, io
 from petsc4py.PETSc import ScalarType
 from math import pi,log
 import math
-from meshes import get_mesh_hierarchy, get_mesh_hierarchy_nonconvex,get_mesh_hierarchy_fitted_disc,get_mesh_convex,create_initial_mesh_convex
+from meshes import get_mesh_hierarchy, get_mesh_hierarchy_nonconvex,get_mesh_hierarchy_fitted_disc,get_mesh_convex,create_initial_mesh_convex,get_mesh_inclusion,get_mesh_inclusion_square
 from problems import elastic_convex, elastic_nonconvex,mu_const,lam_const,mu_var,lam_var,get_ksquared_const
 from dolfinx.cpp.mesh import h as geth
 from petsc4py import PETSc
@@ -152,6 +152,51 @@ def get_reference_sol(type_str,kk=1,eta=0.6,mu_plus=2,mu_minus=1,lam=1.25,nn=5,k
             return ufl.as_vector([f1, f2])
         return jump_k_sol,jump_k_f
     
+    elif type_str == "jump-disk":
+        def jump_disk_sol(x):
+            a = 1
+            r = ufl.sqrt(x[0]*x[0]+x[1]*x[1] + 1e-10)
+            #r = (x[0]*x[0]+x[1]*x[1])
+            #r = x[0]
+            gamma_r = (r-a)*(r-a)
+            Ap_1 = 1.0
+            Bp_1 = 1.0 
+            Ap_2 = 1.0 
+            Bp_2 = 1.0
+            Am_1 = 1.0
+            Bm_1 = 1.0 
+            Am_2 = 1.0 
+            Bm_2 = 1.0
+            u1_plus = gamma_r*( Ap_1*ufl.sin(kk*pi*r) + Bp_1*ufl.cos(kk*pi*r) )   
+            u1_minus = gamma_r*( Am_1*ufl.sin(kk*pi*r) + Bm_1*ufl.cos(kk*pi*r) ) 
+            u2_plus =gamma_r*( Ap_2*ufl.sin(kk*pi*r) + Bp_2*ufl.cos(kk*pi*r) ) 
+            u2_minus = gamma_r*( Am_2*ufl.sin(kk*pi*r) + Bm_2*ufl.cos(kk*pi*r) ) 
+            u1 = ufl.conditional( ufl.gt((x[0]*x[0]+x[1]*x[1])**2-a**2,0), u1_plus,u1_minus) 
+            u2 = ufl.conditional( ufl.gt((x[0]*x[0]+x[1]*x[1])**2-a**2,0), u2_plus,u2_minus) 
+            return ufl.as_vector([u1, u2])
+            #return ufl.as_vector([u1_plus, u2_plus])
+            #return ufl.as_vector([x[0] , x[1]])
+        return jump_disk_sol
+
+    elif type_str == "jump-square":
+        x_L = -0.5
+        x_R = 0.5
+        y_L = -0.5
+        y_R = 0.5
+        def jump_square_sol(x):
+            square_indicator = ufl.And(
+                ufl.And(x[0] >= x_L, x[0] <= x_R), 
+                ufl.And(x[1] >= y_L, x[1] <= y_R) ) 
+            phi_square = (x[0]-x_L)*(x[0]-x_L)*(x[0]-x_R)*(x[0]-x_R)*(x[1]-y_L)*(x[1]-y_L)*(x[1]-y_R)*(x[1]-y_R)
+            u1_plus = phi_square *  ufl.sin(kk*pi*x[0]) * ufl.sin(kk*pi*x[1])
+            u1_minus = phi_square *  ufl.cos(kk*pi*x[0]) * ufl.sin(kk*pi*x[1])
+            u2_plus = phi_square *  ufl.sin(kk*pi*x[0]) * ufl.cos(kk*pi*x[1])
+            u2_minus = phi_square *  ufl.cos(kk*pi*x[0]) * ufl.cos(kk*pi*x[1])
+            u1 = ufl.conditional( square_indicator , u1_minus , u1_plus) 
+            u2 = ufl.conditional( square_indicator , u2_minus , u2_plus) 
+            return ufl.as_vector([u1, u2])
+        return jump_square_sol
+
     if type_str == "Hadamard":
         def Hadamard_sol(x):
             return ufl.as_vector([ ufl.sin(kk*pi*x[0]) * ufl.sinh( ufl.sqrt(nn**2-kk**2)*x[1] )/ ufl.sqrt(nn**2-kk**2) ,
@@ -182,11 +227,13 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
                  }
 
     if pGLS == None:
-        pGLS = pgamma 
-    #metadata = {"quadrature_degree": 10}
-    #dx = ufl.Measure("dx", domain=msh, metadata=metadata)
-    dx = ufl.dx
+        pGLS = pgamma
 
+    dx = ufl.dx
+    if mu_Ind: 
+        metadata = {"quadrature_degree": order+4}
+        dx = ufl.Measure("dx", domain=msh, metadata=metadata)
+    
     h = ufl.CellDiameter(msh)
     n = ufl.FacetNormal(msh)
     x = ufl.SpatialCoordinate(msh)
@@ -209,10 +256,12 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
     B_ind.interpolate(problem.B_Ind)
     omega_ind.interpolate(problem.omega_Ind)
     if mu_Ind: 
+        #metadata = {"quadrature_degree": order+4}
+        #dx = ufl.Measure("dx", domain=msh, metadata=metadata)
         mu = fem.Function(Q_ind)
         mu.interpolate(mu_Ind)
         with io.XDMFFile(msh.comm, "mu-jump.xdmf", "w") as xdmf:
-            mu.name ="mu-jump"
+            #mu.name ="mu-jump"
             xdmf.write_mesh(msh)
             xdmf.write_function(mu)
         #problem.mu = mu 
@@ -236,6 +285,7 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
             xdmf.write_mesh(msh)
             xdmf.write_function(plus_ind)
 
+    #print(" u.geometric_dimension() = ", u.geometric_dimension())
     def sigma(u):
         return 2*mu*epsilon(u) + lam * ufl.nabla_div(u) * ufl.Identity(u.geometric_dimension()) 
     Lu = lambda u : -ufl.nabla_div(sigma(u)) - rho *u
@@ -324,7 +374,7 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
             #L += ufl.inner(q_div,ufl.nabla_div(v))*dx + omega_ind * ufl.inner(ue[0],v[0]) * dx 
             L += omega_ind * ufl.inner(q_div,ufl.nabla_div(v))*dx + omega_ind * ufl.inner(ue,v) * dx 
         else:
-            L += omega_ind * ufl.inner(ue,v) * dx 
+            L +=  omega_ind * ufl.inner(ue,v) * dx 
 
     prob = fem.petsc.LinearProblem(a, L, bcs=bcs, petsc_options={"ksp_type": "preonly", "pc_type": "lu","pc_factor_mat_solver_type":"mumps" }) 
     sol = prob.solve()
@@ -1566,6 +1616,322 @@ def RunProblemJumpWavenumber(km=1,kp=1,apgamma=1e-1,apalpha=1e-1,eta=0.6):
     #    plt.show()
 
 
+
+def RunProblemJumpDisk(kk=1,apgamma=1e-1,apalpha=1e-1,mu_plus=1,mu_minus=2): 
+   
+    a = 1.0 
+    #r = ufl.sqrt(x[0]*x[0]+x[1]*x[1])
+
+    def omega_Ind_Disk(x):
+     
+        values = np.zeros(x.shape[1],dtype=ScalarType)
+        omega_coords = np.logical_or(   ( x[0] <= -1.25 )  , 
+            np.logical_or(   (x[0] >= 1.25 ), (x[1] <= -1.25)  )
+            ) 
+        rest_coords = np.invert(omega_coords)
+        values[omega_coords] = np.full(sum(omega_coords), 1.0)
+        values[rest_coords] = np.full(sum(rest_coords), 0)
+        return values
+
+    def B_Ind_Disk(x):
+        values = np.zeros(x.shape[1],dtype=ScalarType)
+        # Create a boolean array indicating which dofs (corresponding to cell centers)
+        # that are in each domain
+        rest_coords = np.logical_and( ( x[0] >= -0.5 ), 
+            np.logical_and(   (x[0] <= 0.5 ),
+              np.logical_and(   (x[1]>= -0.5),  (x[1]<= 0.5)  )
+            )
+          ) 
+        B_coords = np.invert(rest_coords)
+        values[B_coords] = np.full(sum(B_coords), 0.0)
+        values[rest_coords] = np.full(sum(rest_coords), 1.0)
+        return values
+
+    elastic_convex.SetSubdomains(omega_Ind=omega_Ind_Disk,B_Ind=B_Ind_Disk)
+    
+    def boundary_indicator_centered_square(x):
+        return ( np.isclose(x[0], -1.5) | np.isclose(x[0], 1.5) | np.isclose(x[1], -1.5) | np.isclose(x[1], 1.5) )
+    elastic_convex.SetBoundaryIndicator(boundary_indicator_centered_square)
+    
+
+    orders = [1,2,3] 
+    #order = 3
+    elastic_convex.rho = get_ksquared_const(kk)
+    elastic_convex.lam = lam_const
+    
+    h_init = 1.25
+    n_ref = 6 
+    ls_mesh = []
+    for i in range(n_ref): 
+        ls_mesh.append( get_mesh_inclusion(h_init=h_init/2**i,order=1) )
+    #ls_mesh = get_mesh_hierarchy_fitted_disc(6,eta=eta)
+    mu_plus = mu_plus
+    #mu_plus = 1
+    mu_minus = mu_minus
+    refsol = get_reference_sol(type_str="jump-disk",kk=kk,mu_plus=mu_plus,mu_minus=mu_minus,lam=elastic_convex.lam(1))
+    
+    def mu_Ind(x):
+        values = np.zeros(x.shape[1],dtype=ScalarType)
+        upper_coords = (x[0]*x[0] + x[1]*x[1]) > a**2
+        #print("upper_coords = ", upper_coords)
+        lower_coords = np.invert(upper_coords)
+        values[upper_coords] = np.full(sum(upper_coords), mu_plus)
+        values[lower_coords] = np.full(sum(lower_coords), mu_minus)
+        return values
+
+    #elastic_convex.SetDiscontinuityIndicators(plus_Ind=plus_Ind,minus_Ind=minus_Ind)
+
+    for add_bc,problem_type,pgamma,palpha,pGLS in zip([True,False],["well-posed","ill-posed"],[ ScalarType(apgamma),ScalarType(apgamma)], [ ScalarType(apalpha), ScalarType(apalpha)],[ ScalarType(apgamma),ScalarType(apgamma)] ):
+    #for add_bc,problem_type,pgamma,palpha,pGLS in zip([False],["ill-posed"],[ ScalarType(apgamma)/ (kk**2) ] , [ ScalarType(apalpha)], [ ScalarType(1e-2/kk**4) ] ):
+    #for add_bc,problem_type,pgamma,palpha,pGLS in zip([False],["ill-posed"],[ ScalarType(apgamma) ] , [ ScalarType(apalpha)], [ ScalarType(apgamma) ] ):
+        
+        print("Considering {0} problem".format(problem_type))
+        l2_errors_order = { }
+        eoc_order = { }
+        h_order = { }
+        L2_error_B_plus_order = { } 
+        L2_error_B_minus_order = { } 
+        for order in orders:
+            l2_errors = [ ]
+            L2_error_B_plus = [] 
+            L2_error_B_minus = [] 
+            ndofs = [] 
+            for msh in ls_mesh[:-order]:
+                errors = SolveProblem(problem=elastic_convex,msh=msh,refsol=refsol,order=order,pgamma=pgamma/order**3.5,palpha=palpha,add_bc=add_bc,export_VTK=True,rhs=None,mu_Ind=mu_Ind,pGLS=pGLS/order**3.5)
+                #errors = SolveProblem(problem=elastic_convex,msh=msh,refsol=refsol,order=order,pgamma=pgamma/order**3.5,palpha=palpha,add_bc=add_bc,export_VTK=True,rhs=None,pGLS=pGLS/order**3.5)
+                l2_error = errors["L2-error-u-uh-B"]
+                ndof = errors["ndof"]  
+                print("ndof = {0}, L2-error-B = {1}".format(ndof,l2_error))
+                #L2_error_B_plus.append(errors["L2-error-u-uh-B-plus"] ) 
+                #L2_error_B_minus.append(errors["L2-error-u-uh-B-minus"] ) 
+                l2_errors.append(l2_error)
+                ndofs.append(ndof)
+
+            eoc = [ log(l2_errors[i-1]/l2_errors[i])/log(2) for i in range(1,len(l2_errors))]
+            print("eoc = ", eoc)
+            ndofs = np.array(ndofs) 
+            h_mesh = order/ndofs**(1/2)
+            idx_start = 2 
+            rate_estimate, _ = np.polyfit(np.log(h_mesh)[idx_start:] , np.log(l2_errors)[idx_start:], 1)
+    
+            for error_type,error_str in zip([l2_errors],["L2-error-u-uh-B"]):
+                #print(error_str)
+                eoc = [ log(error_type[i-1]/error_type[i])/log(2) for i in range(1,len(error_type ))]
+                print("{0}, eoc = {1}".format(error_str,eoc))
+
+
+            l2_errors_order[order] =  l2_errors 
+            h_order[order] = h_mesh
+            eoc_order[order] = round(eoc[-1],2)
+            
+            if MPI.COMM_WORLD.rank == 0:
+                name_str = "jump-disk-mup{0}-mum{1}-{2}-k{3}-order{4}.dat".format(mu_plus,mu_minus,problem_type,kk,order)
+                results = [np.array(ndofs,dtype=float),np.array(h_order[order],dtype=float)]
+                header_str = "ndof h "
+                for error_type,error_str in zip([l2_errors, L2_error_B_minus, L2_error_B_plus ],["L2-error-u-uh-B"]):
+                    results.append( np.array(error_type,dtype=float))
+                    header_str += "{0} ".format(error_str)
+                np.savetxt(fname ="../data/{0}".format(name_str),
+                           X = np.transpose(results),
+                           header = header_str,
+                           comments = '')
+
+        if MPI.COMM_WORLD.rank == 0:
+            for order in [1,2,3]: 
+                plt.loglog(h_order[order], l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+                #plt.loglog(h_order[order], L2_error_B_plus_order[order] ,'-x',label="+,p={0}".format(order),linewidth=3,markersize=8)
+                #plt.loglog(h_order[order], L2_error_B_minus_order[order] ,linestyle='dashed',label="-,p={0}".format(order),linewidth=3,markersize=8)
+                #tmp_str += ",eoc={:.2f}".format(eoc_order[order])
+            if problem_type == "well-posed":
+                for order,lstyle in zip([1,2,3],['solid','dashed','dotted']): 
+                    tmp_str = "$\mathcal{{O}}(h^{0})$".format(order+1)
+                    plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**(order+1))/( h_order[order][0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
+            if problem_type == "ill-posed":
+                for order,lstyle in zip([1,2],['solid','dashed','dotted']):
+                    tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
+                    plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**(order))/( h_order[order][0]**(order)) ,label=tmp_str,linestyle=lstyle,color='gray')
+                    #aeoc = eoc_order[order]
+                    #pow_a = "{:.2f}".format(order)
+                    #tmp_str = "eoc = $".format(pow_a)
+                    #plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**aeoc)/( h_order[order][0]**aeoc) ,label=tmp_str,linestyle=lstyle,color='gray')
+
+            plt.xlabel("~h")
+            plt.ylabel("L2-error")
+            plt.legend()
+            #plt.savefig("L2-error-convex-jump-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
+            #plt.title("L2-error")
+            plt.show()
+
+def RunProblemJumpSquare(kk=1,apgamma=1e-1,apalpha=1e-1,mu_plus=1,mu_minus=2): 
+   
+    #a = 1.0 
+    #r = ufl.sqrt(x[0]*x[0]+x[1]*x[1])
+
+    def omega_Ind_Square(x):
+     
+        values = np.zeros(x.shape[1],dtype=ScalarType)
+        omega_coords = np.logical_or(   ( x[0] <= -1.25 )  , 
+            np.logical_or(   (x[0] >= 1.25 ), (x[1] <= -1.25)  )
+            ) 
+        rest_coords = np.invert(omega_coords)
+        values[omega_coords] = np.full(sum(omega_coords), 1.0)
+        values[rest_coords] = np.full(sum(rest_coords), 0)
+        return values
+
+    def B_Ind_Square(x):
+        values = np.zeros(x.shape[1],dtype=ScalarType)
+        # Create a boolean array indicating which dofs (corresponding to cell centers)
+        rest_coords = np.logical_and( ( x[0] >= -1.0 ), 
+            np.logical_and(   (x[0] <= 1.0 ),
+              np.logical_and(   (x[1]>= -1.0),  (x[1]<= 1.0)  )
+            )
+          ) 
+        # that are in each domain
+        #rest_coords = np.logical_and( ( x[0] >= -0.5 ), 
+        #    np.logical_and(   (x[0] <= 0.5 ),
+        #      np.logical_and(   (x[1]>= -0.5),  (x[1]<= 0.5)  )
+        #    )
+        #  ) 
+        B_coords = np.invert(rest_coords)
+        values[B_coords] = np.full(sum(B_coords), 0.0)
+        values[rest_coords] = np.full(sum(rest_coords), 1.0)
+        return values
+
+    x_L = -0.75
+    x_R = 0.75
+    y_L = -0.75
+    y_R = 0.75
+
+    def mu_Ind(x):
+        values = np.zeros(x.shape[1],dtype=ScalarType)
+        inner_coords = np.logical_and( ( x[0] >= x_L ), 
+                np.logical_and(   (x[0] <= x_R ),
+                  np.logical_and(   (x[1]>= y_L),  (x[1]<= y_R)  )
+                )
+              ) 
+        outer_coords = np.invert(inner_coords)
+        values[inner_coords] = np.full(sum(inner_coords), mu_plus)
+        values[outer_coords] = np.full(sum(outer_coords), mu_minus)
+        return values
+
+    elastic_convex.SetSubdomains(omega_Ind=omega_Ind_Square,B_Ind=B_Ind_Square)
+    
+    def boundary_indicator_centered_square(x):
+        return ( np.isclose(x[0], -1.5) | np.isclose(x[0], 1.5) | np.isclose(x[1], -1.5) | np.isclose(x[1], 1.5) )
+    elastic_convex.SetBoundaryIndicator(boundary_indicator_centered_square)
+    
+
+    orders = [1,2,3] 
+    #order = 3
+    elastic_convex.rho = get_ksquared_const(kk)
+    elastic_convex.lam = lam_const
+    
+    h_init = 1.25
+    n_ref = 7 
+    ls_mesh = []
+    for i in range(n_ref): 
+        ls_mesh.append( get_mesh_inclusion_square(h_init=h_init/2**i,x_L=x_L,x_R=x_R,y_L=y_L,y_R=y_R) )
+    #ls_mesh = get_mesh_hierarchy_fitted_disc(6,eta=eta)
+    mu_plus = mu_plus
+    #mu_plus = 1
+    mu_minus = mu_minus
+    refsol = get_reference_sol(type_str="jump-square",kk=kk,mu_plus=mu_plus,mu_minus=mu_minus,lam=elastic_convex.lam(1))
+
+    def mu_Ind(x):
+        values = np.zeros(x.shape[1],dtype=ScalarType)
+        inner_coords = np.logical_and( ( x[0] >= x_L ), 
+                np.logical_and(   (x[0] <= x_R ),
+                  np.logical_and(   (x[1]>= y_L),  (x[1]<= y_R)  )
+                )
+              ) 
+        outer_coords = np.invert(inner_coords)
+        values[inner_coords] = np.full(sum(inner_coords), mu_plus)
+        values[outer_coords] = np.full(sum(outer_coords), mu_minus)
+        return values
+    
+    #elastic_convex.SetDiscontinuityIndicators(plus_Ind=plus_Ind,minus_Ind=minus_Ind)
+
+    #for add_bc,problem_type,pgamma,palpha,pGLS in zip([True,False],["well-posed","ill-posed"],[ ScalarType(apgamma),ScalarType(apgamma)], [ ScalarType(apalpha), ScalarType(apalpha)],[ ScalarType(apgamma),ScalarType(apgamma)] ):     
+    for add_bc,problem_type,pgamma,palpha,pGLS in zip([False],["ill-posed"],[ ScalarType(apgamma)], [ ScalarType(apalpha)],[ ScalarType(apgamma)] ):
+        print("Considering {0} problem".format(problem_type))
+        l2_errors_order = { }
+        eoc_order = { }
+        h_order = { }
+        L2_error_B_plus_order = { } 
+        L2_error_B_minus_order = { } 
+        for order in orders:
+            l2_errors = [ ]
+            L2_error_B_plus = [] 
+            L2_error_B_minus = [] 
+            ndofs = [] 
+            for msh in ls_mesh[:-order]:
+                errors = SolveProblem(problem=elastic_convex,msh=msh,refsol=refsol,order=order,pgamma=pgamma/order**3.5,palpha=palpha,add_bc=add_bc,export_VTK=True,rhs=None,mu_Ind=mu_Ind,pGLS=pGLS/order**3.5)
+                #errors = SolveProblem(problem=elastic_convex,msh=msh,refsol=refsol,order=order,pgamma=pgamma/order**3.5,palpha=palpha,add_bc=add_bc,export_VTK=True,rhs=None,pGLS=pGLS/order**3.5)
+                l2_error = errors["L2-error-u-uh-B"]
+                ndof = errors["ndof"]  
+                print("ndof = {0}, L2-error-B = {1}".format(ndof,l2_error))
+                #L2_error_B_plus.append(errors["L2-error-u-uh-B-plus"] ) 
+                #L2_error_B_minus.append(errors["L2-error-u-uh-B-minus"] ) 
+                l2_errors.append(l2_error)
+                ndofs.append(ndof)
+
+            eoc = [ log(l2_errors[i-1]/l2_errors[i])/log(2) for i in range(1,len(l2_errors))]
+            print("eoc = ", eoc)
+            ndofs = np.array(ndofs) 
+            h_mesh = order/ndofs**(1/2)
+            idx_start = 2 
+            rate_estimate, _ = np.polyfit(np.log(h_mesh)[idx_start:] , np.log(l2_errors)[idx_start:], 1)
+    
+            for error_type,error_str in zip([l2_errors],["L2-error-u-uh-B"]):
+                #print(error_str)
+                eoc = [ log(error_type[i-1]/error_type[i])/log(2) for i in range(1,len(error_type ))]
+                print("{0}, eoc = {1}".format(error_str,eoc))
+
+
+            l2_errors_order[order] =  l2_errors 
+            h_order[order] = h_mesh
+            eoc_order[order] = round(eoc[-1],2)
+            
+            if MPI.COMM_WORLD.rank == 0:
+                name_str = "jump-square-mup{0}-mum{1}-{2}-k{3}-order{4}.dat".format(mu_plus,mu_minus,problem_type,kk,order)
+                results = [np.array(ndofs,dtype=float),np.array(h_order[order],dtype=float)]
+                header_str = "ndof h "
+                for error_type,error_str in zip([l2_errors, L2_error_B_minus, L2_error_B_plus ],["L2-error-u-uh-B"]):
+                    results.append( np.array(error_type,dtype=float))
+                    header_str += "{0} ".format(error_str)
+                np.savetxt(fname ="../data/{0}".format(name_str),
+                           X = np.transpose(results),
+                           header = header_str,
+                           comments = '')
+
+        if MPI.COMM_WORLD.rank == 0:
+            for order in [1,2,3]: 
+                plt.loglog(h_order[order], l2_errors_order[order] ,'-x',label="p={0}".format(order),linewidth=3,markersize=8)
+                #plt.loglog(h_order[order], L2_error_B_plus_order[order] ,'-x',label="+,p={0}".format(order),linewidth=3,markersize=8)
+                #plt.loglog(h_order[order], L2_error_B_minus_order[order] ,linestyle='dashed',label="-,p={0}".format(order),linewidth=3,markersize=8)
+                #tmp_str += ",eoc={:.2f}".format(eoc_order[order])
+            if problem_type == "well-posed":
+                for order,lstyle in zip([1,2,3],['solid','dashed','dotted']): 
+                    tmp_str = "$\mathcal{{O}}(h^{0})$".format(order+1)
+                    plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**(order+1))/( h_order[order][0]**(order+1)) ,label=tmp_str,linestyle=lstyle,color='gray')
+            if problem_type == "ill-posed":
+                for order,lstyle in zip([1,2],['solid','dashed','dotted']):
+                    tmp_str = "$\mathcal{{O}}(h^{0})$".format(order)
+                    plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**(order))/( h_order[order][0]**(order)) ,label=tmp_str,linestyle=lstyle,color='gray')
+                    #aeoc = eoc_order[order]
+                    #pow_a = "{:.2f}".format(order)
+                    #tmp_str = "eoc = $".format(pow_a)
+                    #plt.loglog(h_order[order], l2_errors_order[order][0]*(h_order[order]**aeoc)/( h_order[order][0]**aeoc) ,label=tmp_str,linestyle=lstyle,color='gray')
+
+            plt.xlabel("~h")
+            plt.ylabel("L2-error")
+            plt.legend()
+            #plt.savefig("L2-error-convex-jump-{0}-k{1}.png".format(problem_type,kk),transparent=True,dpi=200)
+            #plt.title("L2-error")
+            plt.show()
+
+
+
 # pgamma = 1e-5/kk**2 , pGLS = 1e-4/kk**4 
 # Runs for draft
 # 
@@ -1587,4 +1953,8 @@ def RunProblemJumpWavenumber(km=1,kp=1,apgamma=1e-1,apalpha=1e-1,eta=0.6):
 #RunProblemConvexOscillatory(kk=6,compute_cond=False,perturb_theta=0)
 #RunProblemJump(kk=6,apgamma=1e-5,apalpha=1e-3,mu_plus=2,mu_minus=1)
 #RunProblemSplitGeom(kk=1,apgamma=1e-3,apalpha=1e-5,compute_cond=False,div_known=False)
-RunProblemJumpWavenumber(km=2,kp=6,apgamma=1e-1,apalpha=1e-1,eta=0.6)
+#RunProblemJumpWavenumber(km=2,kp=6,apgamma=1e-1,apalpha=1e-1,eta=0.6)
+#RunProblemJumpSquare(kk=1,apgamma=1e-1,apalpha=1e-1,mu_plus=1,mu_minus=2) 
+RunProblemJumpSquare(kk=4,apgamma=1e-5,apalpha=1e-3,mu_plus=5,mu_minus=1)
+
+
