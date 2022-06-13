@@ -179,10 +179,10 @@ def get_reference_sol(type_str,kk=1,eta=0.6,mu_plus=2,mu_minus=1,lam=1.25,nn=5,k
         return jump_disk_sol
 
     elif type_str == "jump-square":
-        x_L = -0.5
-        x_R = 0.5
-        y_L = -0.5
-        y_R = 0.5
+        x_L = -0.75
+        x_R = 0.75
+        y_L = -0.75
+        y_R = 0.75
         def jump_square_sol(x):
             square_indicator = ufl.And(
                 ufl.And(x[0] >= x_L, x[0] <= x_R), 
@@ -1783,7 +1783,7 @@ def RunProblemJumpSquare(kk=1,apgamma=1e-1,apalpha=1e-1,mu_plus=1,mu_minus=2):
         # Create a boolean array indicating which dofs (corresponding to cell centers)
         rest_coords = np.logical_and( ( x[0] >= -1.0 ), 
             np.logical_and(   (x[0] <= 1.0 ),
-              np.logical_and(   (x[1]>= -1.0),  (x[1]<= 1.0)  )
+              np.logical_and(   (x[1]>= -1.0),  (x[1]<= 1.25)  )
             )
           ) 
         # that are in each domain
@@ -1830,29 +1830,29 @@ def RunProblemJumpSquare(kk=1,apgamma=1e-1,apalpha=1e-1,mu_plus=1,mu_minus=2):
     n_ref = 7 
     ls_mesh = []
     for i in range(n_ref): 
-        ls_mesh.append( get_mesh_inclusion_square(h_init=h_init/2**i,x_L=x_L,x_R=x_R,y_L=y_L,y_R=y_R) )
+        ls_mesh.append( get_mesh_inclusion_square(h_init=h_init/2**i) )
     #ls_mesh = get_mesh_hierarchy_fitted_disc(6,eta=eta)
     mu_plus = mu_plus
     #mu_plus = 1
     mu_minus = mu_minus
     refsol = get_reference_sol(type_str="jump-square",kk=kk,mu_plus=mu_plus,mu_minus=mu_minus,lam=elastic_convex.lam(1))
 
-    def mu_Ind(x):
-        values = np.zeros(x.shape[1],dtype=ScalarType)
-        inner_coords = np.logical_and( ( x[0] >= x_L ), 
-                np.logical_and(   (x[0] <= x_R ),
-                  np.logical_and(   (x[1]>= y_L),  (x[1]<= y_R)  )
-                )
-              ) 
-        outer_coords = np.invert(inner_coords)
-        values[inner_coords] = np.full(sum(inner_coords), mu_plus)
-        values[outer_coords] = np.full(sum(outer_coords), mu_minus)
-        return values
+    #def mu_Ind(x):
+    #    values = np.zeros(x.shape[1],dtype=ScalarType)
+    #    inner_coords = np.logical_and( ( x[0] >= x_L ), 
+    #            np.logical_and(   (x[0] <= x_R ),
+    #              np.logical_and(   (x[1]>= y_L),  (x[1]<= y_R)  )
+    #            )
+    #          ) 
+    #    outer_coords = np.invert(inner_coords)
+    #    values[inner_coords] = np.full(sum(inner_coords), mu_plus)
+    #    values[outer_coords] = np.full(sum(outer_coords), mu_minus)
+    #    return values
     
     #elastic_convex.SetDiscontinuityIndicators(plus_Ind=plus_Ind,minus_Ind=minus_Ind)
 
-    #for add_bc,problem_type,pgamma,palpha,pGLS in zip([True,False],["well-posed","ill-posed"],[ ScalarType(apgamma),ScalarType(apgamma)], [ ScalarType(apalpha), ScalarType(apalpha)],[ ScalarType(apgamma),ScalarType(apgamma)] ):     
-    for add_bc,problem_type,pgamma,palpha,pGLS in zip([False],["ill-posed"],[ ScalarType(apgamma)], [ ScalarType(apalpha)],[ ScalarType(apgamma)] ):
+    for add_bc,problem_type,pgamma,palpha,pGLS in zip([True,False],["well-posed","ill-posed"],[ ScalarType(apgamma),ScalarType(apgamma)], [ ScalarType(apalpha), ScalarType(apalpha)],[ ScalarType(apgamma),ScalarType(apgamma)] ):     
+    #for add_bc,problem_type,pgamma,palpha,pGLS in zip([False],["ill-posed"],[ ScalarType(apgamma)], [ ScalarType(apalpha)],[ ScalarType(apgamma)] ):
         print("Considering {0} problem".format(problem_type))
         l2_errors_order = { }
         eoc_order = { }

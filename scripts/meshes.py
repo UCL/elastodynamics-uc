@@ -924,7 +924,7 @@ with XDMFFile(mesh.comm, "mu-jump-disk-idx{0}.xdmf".format(idx), "w") as file:
 
 
 
-def get_mesh_inclusion_square(h_init=1.25,x_L=-1,x_R=1,y_L=-1,y_R=1): 
+def get_mesh_inclusion_square(h_init=1.25,x_L=-1,x_R=1,y_L=-1,y_R=1.25): 
     gdim = 2
     cell_type  = CellType.triangle
     gmsh.initialize()
@@ -945,8 +945,8 @@ def get_mesh_inclusion_square(h_init=1.25,x_L=-1,x_R=1,y_L=-1,y_R=1):
         r2 = gmsh.model.occ.addRectangle(-1.25, -1.25, 0, 2.5,2.75,tag=2)
         r3 = gmsh.model.occ.cut( [(2,r1)], [(2,r2)],tag=3)
 
-        target_dom = gmsh.model.occ.addRectangle(-0.75, -0.75, 0, 1.5,1.5)
-        mu_inner = gmsh.model.occ.addRectangle(x_L, y_L, 0, x_R-x_L ,y_R-y_L)
+        target_dom = gmsh.model.occ.addRectangle(x_L, y_L, 0, x_R-x_L ,y_R-y_L)
+        mu_inner =  gmsh.model.occ.addRectangle(-0.75, -0.75, 0, 1.5,1.5)
         gmsh.model.occ.synchronize()
         remainder = gmsh.model.occ.addRectangle(-1.25, -1.25, 0, 2.5,2.75)
         #gmsh.model.occ.fragment([(2,r1)],[(2,Bdisk) ])
