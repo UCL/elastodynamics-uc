@@ -103,22 +103,31 @@ def DrawMeshTikz(msh,name,case_str="dummy"):
 
         if case_str == "splitgeom-B":
             tol = 1e-5
+
             def is_in_Bplus(coord):
-                if ( coord[0] >= (0.1+tol) and coord[0] <= (0.9-tol) and coord[1] >= (0.95+tol)  ): 
-                    return False 
+                if (coord[0] >= 0.1 and coord[0] <= 0.9 and coord[1] >= eta and coord[1] <= 0.95): 
+                    return True
                 else:
-                    if coord[1] >= eta:
-                        return True
-                    else:
-                        return False
+                    return False 
+                #if ( coord[0] >= (0.1+tol) and coord[0] <= (0.9-tol) and coord[1] >= (0.95+tol)  ): 
+                #    return False 
+                #else:
+                #    if coord[1] >= eta:
+                #        return True
+                #    else:
+                #        return False
             def is_in_Bminus(coord):
-                if ( coord[0] >= (0.1+tol) and coord[0] <= (0.9-tol) and coord[1] >= (0.95+tol)  ): 
-                    return False 
+                if ( coord[1] <= eta ):
+                    return True
                 else:
-                    if coord[1] >= (eta+tol):
-                        return False
-                    else:
-                        return True
+                    return False 
+                #if ( coord[0] >= (0.1+tol) and coord[0] <= (0.9-tol) and coord[1] >= (0.95+tol)  ): 
+                #    return False 
+                #else:
+                #    if coord[1] >= (eta+tol):
+                #        return False
+                #    else:
+                #        return True
             el_in_Bplus = np.all(np.array([is_in_Bplus(coord) for coord in coords ]))
             el_in_Bminus = np.all(np.array([is_in_Bminus(coord) for coord in coords ]))
             
@@ -131,6 +140,63 @@ def DrawMeshTikz(msh,name,case_str="dummy"):
             file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .125\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$B_+$}}  }} }}; \n".format(0.5*ddx,0.775*ddx))
             file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .125\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$B_-$}}  }} }}; \n".format(0.5*ddx,0.425*ddx))
 
+        if case_str == "inclusion-omega":
+            eta = 0.25
+            def is_in_dom(coord):
+                if (coord[0] <= -1.25 and coord[1] <= eta+1e-4):
+                    return True 
+                elif (coord[0] >= 1.25 and coord[1] <= eta+1e-4):
+                    return True 
+                elif (coord[1] <= -1.25):
+                    return True
+                else:
+                    return False 
+            el_in_domain = np.all(np.array([is_in_dom(coord) for coord in coords ]))
+    
+            def is_in_incl(coord):
+                if (coord[0] >= -0.75 and coord[0] <= 0.75 and coord[1] >= -0.75 and coord[1] <= 0.75    ):
+                    return True 
+                else:
+                    return False 
+            el_in_incl = np.all(np.array([is_in_incl(coord) for coord in coords ]))
+
+
+            #print("el_in_domain = ", el_in_domain)  
+            if el_in_domain:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.5] {1} -- {2} -- {3} -- cycle; \n".format("cyan", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            elif el_in_incl:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.5] {1} -- {2} -- {3} -- cycle; \n".format("orange", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            else:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.2] {1} -- {2} -- {3} -- cycle; \n".format("gray", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            file.write("\\node (RL) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .25\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\omega$}}  }} }}; \n".format(0.0*ddx,-1.375*ddx))
+
+            file.write("\\node (RR) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .25\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\mu_+$}}  }} }}; \n".format(0.0*ddx,0.0*ddx))
+            
+        if case_str == "inclusion-B":
+            tol = 1e-5
+            eta = 0.25
+            def is_in_Bplus(coord):
+                if (coord[0] >= -1.25 and coord[0] <= 1.25 and coord[1] >= eta and coord[1] <= 1.25): 
+                    return True
+                else:
+                    return False 
+            
+            def is_in_Bminus(coord):
+                if (coord[0] >= -1.25 and coord[0] <= 1.25 and coord[1] >= -1.25 and coord[1] <= eta): 
+                    return True
+                else:
+                    return False 
+            el_in_Bplus = np.all(np.array([is_in_Bplus(coord) for coord in coords ]))
+            el_in_Bminus = np.all(np.array([is_in_Bminus(coord) for coord in coords ]))
+            
+            if el_in_Bplus:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.5] {1} -- {2} -- {3} -- cycle; \n".format("red", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            elif el_in_Bminus: 
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.5] {1} -- {2} -- {3} -- cycle; \n".format("cyan", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            else:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.2] {1} -- {2} -- {3} -- cycle; \n".format("gray", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .25\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$B_+$}}  }} }}; \n".format(0.0*ddx,0.75*ddx))
+            file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .25\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$B_-$}}  }} }}; \n".format(0.0*ddx,-0.75*ddx))
     file.write("\\end{tikzpicture} \n") 
 
     file.write("\\end{document} \n")           
@@ -592,27 +658,19 @@ def get_mesh_hierarchy_fitted_disc(n_ref,eta,h_init=1.25):
         r1 = gmsh.model.occ.addRectangle(0, 0, 0, 1, eta,tag=1)
         r2 = gmsh.model.occ.addRectangle(0.1, 0.25, 0, 0.8,y_eta,tag=2)
         r3 = gmsh.model.occ.cut( [(2,r1)], [(2,r2)],tag=3)
+        B_minus = gmsh.model.occ.addRectangle(0.1, 0.25, 0, 0.8, y_eta,tag=4) 
+        B_plus = gmsh.model.occ.addRectangle(0.1, y_eta, 0, 0.8, (0.95-y_eta),tag=5) 
+        top_remainder = gmsh.model.occ.addRectangle(0.0, y_eta, 0, 1.0, (1.0-y_eta),tag=6) 
 
-        print("r3 = ", r3)
-        #gmsh.model.occ.addRectangle(0.1, 0.1, 0, 0.8, 0.9,tag=4)
-        #gmsh.model.occ.addRectangle(0.1, 0.25, 0, 0.8, 0.7,tag=4)
-        middle_bottom = gmsh.model.occ.addRectangle(0.1, 0.25, 0, 0.8, y_eta,tag=4)
-        #gmsh.model.occ.fragment([(2,3)],[(2,middle_bottom) ])
-        
-        middle_top = gmsh.model.occ.addRectangle(0.1, y_eta, 0, 0.8, y_inc,tag=5)
-        #middle_top = gmsh.model.occ.addRectangle(0.0, y_eta, 0, 1.0, y_inc,tag=5)
-        #gmsh.model.occ.fragment([(2,3)],[(2,middle_bottom),(2,middle_top)] )
+        gmsh.model.occ.fragment([(2,3)],[(2,B_minus),(2,B_plus),(2,top_remainder)])
 
-        
-        #gmsh.model.occ.fragment(tmp,[(2,middle_top) ])
-        #print("tmp =" , tmp)
-        #print("hello")
+        #middle_top = gmsh.model.occ.addRectangle(0.1, y_eta, 0, 0.8, y_inc,tag=5)
+        #side_left = gmsh.model.occ.addRectangle(0.0, y_eta, 0, 0.1, (1.0-y_eta),tag=6)
+        #side_right = gmsh.model.occ.addRectangle(0.9, y_eta, 0, 0.1, (1.0-y_eta),tag=7)
+        #top_remainder = gmsh.model.occ.addRectangle(0.1, 0.95, 0, 0.8, 0.05,tag=8)
+        #gmsh.model.occ.fragment([(2,3)],[(2,side_left),(2,side_right),(2,middle_bottom),(2,middle_top),(2,top_remainder)])
 
-        side_left = gmsh.model.occ.addRectangle(0.0, y_eta, 0, 0.1, (1.0-y_eta),tag=6)
-        side_right = gmsh.model.occ.addRectangle(0.9, y_eta, 0, 0.1, (1.0-y_eta),tag=7)
-        top_remainder = gmsh.model.occ.addRectangle(0.1, 0.95, 0, 0.8, 0.05,tag=8)
-        #gmsh.model.occ.fragment([(2,3)],[(2,middle_bottom),(2,middle_top),(2,side_left),(2,side_right),(2,top_remainder) ])
-        gmsh.model.occ.fragment([(2,3)],[(2,side_left),(2,side_right),(2,middle_bottom),(2,middle_top),(2,top_remainder)])
+
 
         # We fuse the two rectangles and keep the interface between them
         #gmsh.model.occ.fragment([(2,3)],[(2,4)])
@@ -714,12 +772,12 @@ def B_Ind(x):
     values = np.zeros(x.shape[1],dtype=ScalarType)
     # Create a boolean array indicating which dofs (corresponding to cell centers)
     # that are in each domain
-    rest_coords = np.logical_and( ( x[0] >= 0.1 ), 
+    B_coords = np.logical_and( ( x[0] >= 0.1 ), 
         np.logical_and(   (x[0] <= 0.9 ),
-          np.logical_and(   (x[1]>= 0.95),  (x[1]<= 1+tol)  )
+          np.logical_and(   (x[1]>= 0.25),  (x[1]<= 0.95)  )
         )
-      ) 
-    B_coords = np.invert(rest_coords)
+    ) 
+    rest_coords = np.invert(B_coords)
     values[B_coords] = np.full(sum(B_coords), 1.0)
     values[rest_coords] = np.full(sum(rest_coords), 0)
     return values
@@ -924,7 +982,7 @@ with XDMFFile(mesh.comm, "mu-jump-disk-idx{0}.xdmf".format(idx), "w") as file:
 
 
 
-def get_mesh_inclusion_square(h_init=1.25,x_L=-1,x_R=1,y_L=-1,y_R=1.25): 
+def get_mesh_inclusion_square(h_init=1.25,x_L=-1.25,x_R=1.25,y_L=-1.25,y_R=1.25,eta=1.25): 
     gdim = 2
     cell_type  = CellType.triangle
     gmsh.initialize()
@@ -941,16 +999,39 @@ def get_mesh_inclusion_square(h_init=1.25,x_L=-1,x_R=1,y_L=-1,y_R=1.25):
 
 
     if MPI.COMM_WORLD.rank == 0:
-        r1 = gmsh.model.occ.addRectangle(-1.5, -1.5, 0, 3,3,tag=1)
-        r2 = gmsh.model.occ.addRectangle(-1.25, -1.25, 0, 2.5,2.75,tag=2)
+        r1 = gmsh.model.occ.addRectangle(-1.5, -1.5, 0, 3,1.5+eta,tag=1)
+        r2 = gmsh.model.occ.addRectangle(-1.25, -1.25, 0, 2.5,1.15+eta,tag=2)
         r3 = gmsh.model.occ.cut( [(2,r1)], [(2,r2)],tag=3)
 
-        target_dom = gmsh.model.occ.addRectangle(x_L, y_L, 0, x_R-x_L ,y_R-y_L)
-        mu_inner =  gmsh.model.occ.addRectangle(-0.75, -0.75, 0, 1.5,1.5)
-        gmsh.model.occ.synchronize()
-        remainder = gmsh.model.occ.addRectangle(-1.25, -1.25, 0, 2.5,2.75)
-        #gmsh.model.occ.fragment([(2,r1)],[(2,Bdisk) ])
-        gmsh.model.occ.fragment([(2,3)],[(2,target_dom),(2,mu_inner),(2,remainder) ])
+        #mu_inner =  gmsh.model.occ.addRectangle(-0.75, -0.75, 0, 1.5,2.25)
+        if eta < 1.5:
+            target_dom_minus = gmsh.model.occ.addRectangle(x_L, y_L, 0, x_R-x_L ,eta-y_L)
+            target_dom_plus = gmsh.model.occ.addRectangle(x_L, eta, 0, x_R-x_L ,y_R-eta)
+            mu_inner =  gmsh.model.occ.addRectangle(-0.75, -0.75, 0, 1.5,1.5)
+            #remainder_mid_1 = gmsh.model.occ.addRectangle(-1.25, -1.25, 0,x_L+1.25,1.25+eta)
+            #remainder_mid_2 = gmsh.model.occ.addRectangle(x_R, -1.25, 0, 1.25-x_R,1.25+eta)
+            remainder_top = gmsh.model.occ.addRectangle(-1.5, eta, 0, 3.0, 1.5-eta)
+            gmsh.model.occ.synchronize()
+            #gmsh.model.occ.fragment([(2,3)],[(2,target_dom_minus),(2,target_dom_plus),(2,mu_inner),(2,remainder_mid_1),(2,remainder_mid_2),(2,remainder_top)])
+            #gmsh.model.occ.fragment([(2,3)],[(2,target_dom_minus),(2,target_dom_plus),(2,mu_inner),(2,remainder_top)])
+            #r4 = gmsh.model.occ.fragment([(2,3)],[(2,target_dom_minus),(2,mu_inner), (2,remainder_top),  ])
+            r4 = gmsh.model.occ.fragment([(2,3)],[(2,target_dom_minus),(2,mu_inner),  (2,target_dom_plus),(2,remainder_top)   ])
+            
+            gmsh.model.occ.synchronize()
+            #r5 = gmsh.model.occ.addRectangle(-1.5, eta, 0, 3.0, 1.5-eta)
+            #r6 = gmsh.model.occ.addRectangle( x_L, eta, 0, x_R-x_L, 1.25-eta)
+            #r7 = gmsh.model.occ.cut( [(2,r5)], [(2,r6)])
+            #gmsh.model.occ.synchronize()
+            #r8 = gmsh.model.occ.addRectangle( x_L, eta, 0, x_R-x_L, 1.25-eta)
+            #r9 = gmsh.model.occ.fragment([(2,r4)],[(2,r7),(2,r8)])
+
+
+        else:
+            target_dom = gmsh.model.occ.addRectangle(x_L, y_L, 0, x_R-x_L ,y_R-y_L)
+            mu_inner =  gmsh.model.occ.addRectangle(-0.75, -0.75, 0, 1.5,1.5)
+            remainder = gmsh.model.occ.addRectangle(-1.25, -1.25, 0, 2.5,2.75)
+            gmsh.model.occ.synchronize()
+            gmsh.model.occ.fragment([(2,3)],[(2,target_dom),(2,mu_inner),(2,remainder) ])
         
         gmsh.model.occ.synchronize()
 
