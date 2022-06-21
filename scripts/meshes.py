@@ -197,8 +197,46 @@ def DrawMeshTikz(msh,name,case_str="dummy"):
                 file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.2] {1} -- {2} -- {3} -- cycle; \n".format("gray", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
             file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .25\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$B_+$}}  }} }}; \n".format(0.0*ddx,0.75*ddx))
             file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .25\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$B_-$}}  }} }}; \n".format(0.0*ddx,-0.75*ddx))
-    file.write("\\end{tikzpicture} \n") 
 
+        if case_str == "BottomDataJumpEta":
+            eta = 0.6 
+            def is_in_omega(coord):
+                if (coord[1] <= 0.25+1e-4):
+                    return True 
+                else:
+                    return False 
+            el_in_omega = np.all(np.array([is_in_omega(coord) for coord in coords ])) 
+            def is_in_Bplus(coord):
+                if (coord[0] >= 0.25 and coord[0] <= 0.75 and coord[1] >= eta and coord[1] <= 0.9): 
+                    return True
+                else:
+                    return False 
+            def is_in_Bminus(coord):    
+                if (coord[0] >= 0.25 and coord[0] <= 0.75 and coord[1] >= 0.25 and coord[1] <= eta): 
+                    return True
+                else:
+                    return False 
+            el_in_Bplus = np.all(np.array([is_in_Bplus(coord) for coord in coords ]))
+            el_in_Bminus = np.all(np.array([is_in_Bminus(coord) for coord in coords ]))
+
+            if el_in_omega:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.5] {1} -- {2} -- {3} -- cycle; \n".format("cyan", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            elif el_in_Bplus:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.5] {1} -- {2} -- {3} -- cycle; \n".format("red", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            elif el_in_Bminus: 
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.5] {1} -- {2} -- {3} -- cycle; \n".format("green!70!blue", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            else:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.0] {1} -- {2} -- {3} -- cycle; \n".format("gray", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+
+
+            file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$B_+$}}  }} }}; \n".format(0.5*ddx,0.7*ddx))
+            file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$B_-$}}  }} }}; \n".format(0.5*ddx,0.45*ddx))
+            file.write("\\draw[line width=0.4mm,draw =black,dashed] {1} -- {2}; \n".format("cyan", (ddx*0.0,ddx*eta) , (ddx*1.0,ddx*eta)  ))    
+            file.write("\\node (RL) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\omega$}}  }} }}; \n".format(0.5*ddx,0.1*ddx))
+            file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\\mu_-$}}  }} }}; \n".format(0.1*ddx,0.45*ddx))
+            file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\\mu_+$}}  }} }}; \n".format(0.1*ddx,0.75*ddx))
+
+    file.write("\\end{tikzpicture} \n") 
     file.write("\\end{document} \n")           
     file.close()
 
@@ -1124,4 +1162,148 @@ mu.interpolate(mu_Ind)
 with XDMFFile(mesh.comm, "mu-jump-disk-idx{0}.xdmf".format(idx), "w") as file:
     file.write_mesh(mesh)
     file.write_function(mu)
+'''
+
+
+
+def get_mesh_bottom_data(h_init=1.25,eta=0.6): 
+    gdim = 2
+    cell_type  = CellType.triangle
+    gmsh.initialize()
+    gmsh.model.add("inclm")
+    gmsh.option.setNumber("Mesh.MeshSizeFactor", h_init)
+    proc = MPI.COMM_WORLD.rank
+
+    if MPI.COMM_WORLD.rank == 0:
+
+        #Omega_all = gmsh.model.occ.addRectangle(0.0, 0.0, 0, 1.0,1.0,tag=8)
+        omega = gmsh.model.occ.addRectangle(0.0, 0.0, 0, 1.0,0.25,tag=1)
+        
+        middle_left = gmsh.model.occ.addRectangle(0, 0.25, 0, 0.25,eta-0.25,tag=2)
+        middle_right = gmsh.model.occ.addRectangle(0.75, 0.25, 0, 0.25,eta-0.25,tag=3)
+        B_minus = gmsh.model.occ.addRectangle(0.25, 0.25, 0, 0.5,eta-0.25,tag=4)
+        
+        B_plus = gmsh.model.occ.addRectangle(0.25, eta, 0, 0.5,0.9-eta,tag=5)
+        top_left = gmsh.model.occ.addRectangle(0, eta, 0, 0.25,1.0-eta,tag=6)
+        top_middle = gmsh.model.occ.addRectangle(0.25, eta, 0, 0.5,1.0-eta,tag=7)
+        top_right = gmsh.model.occ.addRectangle(0.75, eta, 0, 0.25,1.0-eta,tag=8)
+
+
+        gmsh.model.occ.synchronize()
+        gmsh.model.occ.fragment([(2,omega)],[(2,B_minus),(2,middle_left), (2,middle_right),(2,B_plus),(2,top_left),(2,top_middle),(2,top_right)]) 
+        #gmsh.model.occ.fragment([(2,7)],[(2,B_minus),(2,middle_left),(2,middle_right),(2,B_plus),(2,omega) ])
+        
+        gmsh.model.occ.synchronize()
+
+        print(len(gmsh.model.getEntities(dim=2)))
+        
+        its = 1 
+        for surface in gmsh.model.getEntities(dim=2):
+            com = gmsh.model.occ.getCenterOfMass(surface[0], surface[1])
+            print(com)
+            gmsh.model.addPhysicalGroup(2, [surface[1]], its )
+            its +=1
+        
+        # Tag the left boundary
+        #bnd_square = []
+        #for line in gmsh.model.getEntities(dim=1):
+        #    com = gmsh.model.occ.getCenterOfMass(line[0], line[1])
+        #    if np.isclose(com[0], 0) or np.isclose(com[0], 1) or np.isclose(com[1], 0) or  np.isclose(com[1], 1): 
+        #        bnd_square.append(line[1])
+        #gmsh.model.addPhysicalGroup(1, bnd_square, bnd_marker)
+        gmsh.model.mesh.generate(2)
+        #gmsh.model.mesh.setOrder(order)
+        gmsh.write("mesh.msh")
+    #gmsh.finalize()
+
+
+    if cell_type == CellType.quadrilateral:
+        gmsh.model.mesh.recombine()
+    order = 1
+    gmsh.model.mesh.setOrder(order)
+    idx, points, _ = gmsh.model.mesh.getNodes()
+    #points = points[:,:2]
+    ls_points_2D = [] 
+    for i in range(len(points)):
+        if (i+1) % 3 != 0:
+            ls_points_2D.append(points[i])
+    ls_points_2D = np.array(ls_points_2D)
+    #points = points.reshape(-1, 3)
+    points =  ls_points_2D.reshape(-1, 2)
+    #print("points =", points)
+    idx -= 1
+    srt = np.argsort(idx)
+    assert np.all(idx[srt] == np.arange(len(idx)))
+    x = points[srt]
+
+    element_types, element_tags, node_tags = gmsh.model.mesh.getElements(dim=2)
+    name, dim, order, num_nodes, local_coords, num_first_order_nodes = gmsh.model.mesh.getElementProperties(
+        element_types[0])
+
+    cells = node_tags[0].reshape(-1, num_nodes) - 1
+    if cell_type == CellType.triangle:
+        gmsh_cell_id = gmsh.model.mesh.getElementType("triangle", order)
+    elif cell_type == CellType.quadrilateral:
+        gmsh_cell_id = gmsh.model.mesh.getElementType("quadrangle", order)
+    gmsh.finalize()
+
+    cells = cells[:, perm_gmsh(cell_type, cells.shape[1])]
+    #print("cells.shape[1] =, ",cells.shape[1])
+    msh = create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh_from_gmsh(gmsh_cell_id, x.shape[1]))
+    #msh = create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh_from_gmsh(gmsh_cell_id,2))
+    #print("x.shape[1] =", x.shape[1])
+
+    with XDMFFile(msh.comm, "mesh.xdmf", "w") as xdmf:
+        xdmf.write_mesh(msh)
+    return msh
+
+#mesh = get_mesh_bottom_data(h_init=1.25,eta=0.6) 
+#with XDMFFile(mesh.comm, "mesh.xdmf".format(idx), "w") as file:
+#    file.write_mesh(mesh)
+'''
+eta = 0.6
+h_init = 1.25
+n_ref = 5
+ls_mesh = []
+for i in range(n_ref): 
+    ls_mesh.append( get_mesh_bottom_data(h_init=h_init/2**i,eta=eta) )
+
+def omega_Ind(x):
+    
+    values = np.zeros(x.shape[1],dtype=ScalarType)
+    omega_coords = x[1] <= 0.25 
+    rest_coords = np.invert(omega_coords)
+    values[omega_coords] = np.full(sum(omega_coords), 1.0)
+    values[rest_coords] = np.full(sum(rest_coords), 0)
+    return values
+
+def B_Ind(x):
+    values = np.zeros(x.shape[1],dtype=ScalarType)
+    # Create a boolean array indicating which dofs (corresponding to cell centers)
+    # that are in each domain
+    B_coords = np.logical_and( ( x[0] >= 0.25 ), 
+        np.logical_and(   (x[0] <= 0.75 ),
+          np.logical_and(   (x[1]>= 0.25),  (x[1]<= 0.9)  )
+        )
+    ) 
+    rest_coords = np.invert(B_coords)
+    values[B_coords] = np.full(sum(B_coords), 1.0)
+    values[rest_coords] = np.full(sum(rest_coords), 0)
+    return values
+
+for idx,mesh in enumerate(ls_mesh):
+
+    Q_ind = FunctionSpace(mesh, ("DG", 0))
+    B_ind  = Function(Q_ind)
+    omega_ind = Function(Q_ind)
+    B_ind.interpolate(B_Ind)
+    omega_ind.interpolate(omega_Ind)
+
+    with XDMFFile(mesh.comm, "omega-ind-reflvl{0}.xdmf".format(idx), "w") as file:
+        file.write_mesh(mesh)
+        file.write_function(omega_ind)
+
+    with XDMFFile(mesh.comm, "B-ind-reflvl{0}.xdmf".format(idx), "w") as file:
+        file.write_mesh(mesh)
+        file.write_function(B_ind)
 '''
