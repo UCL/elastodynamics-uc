@@ -2368,8 +2368,8 @@ def RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_min
 
 
     
-    #for add_bc,problem_type,pgamma,palpha,pGLS in zip([False],["ill-posed"],[ ScalarType(apgamma) ] , [ ScalarType(apalpha)], [ ScalarType(apgamma) ] ):
-    for add_bc,problem_type,pgamma,palpha,pGLS in zip([True,False],["well-posed","ill-posed"],[ScalarType(apgamma),ScalarType(apgamma)],[ScalarType(apalpha),ScalarType(apalpha)], [ ScalarType(apgamma),ScalarType(apgamma)] ):
+    for add_bc,problem_type,pgamma,palpha,pGLS in zip([False],["ill-posed"],[ ScalarType(apgamma) ] , [ ScalarType(apalpha)], [ ScalarType(apgamma) ] ):
+    #for add_bc,problem_type,pgamma,palpha,pGLS in zip([True,False],["well-posed","ill-posed"],[ScalarType(apgamma),ScalarType(apgamma)],[ScalarType(apalpha),ScalarType(apalpha)], [ ScalarType(apgamma),ScalarType(apgamma)] ):
         
         print("Considering {0} problem".format(problem_type))
         l2_errors_order = { }
@@ -2469,6 +2469,10 @@ def RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_min
 # additional runs, debugging
 #RunProblemConvexOscillatory(kk=6,compute_cond=False,perturb_theta=0)
 #RunProblemJump(kk=4,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_minus=2)
+
+RunProblemJump(kk=8,apgamma=1e-5,apalpha=1e-3,mu_plus=2,mu_minus=1)
+
+
 #RunProblemSplitGeom(kk=1,apgamma=1e-3,apalpha=1e-5,compute_cond=False,div_known=False)
 
 #RunProblemJumpWavenumber(km=2,kp=6,apgamma=1e-5,apalpha=1e-3,eta=0.6)
@@ -2483,8 +2487,10 @@ def RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_min
 #RunProblemConvexOscillatoryKhscaling()
 #RunProblemSplitGeom(kk=1,apgamma=5e-2,apalpha=1e-3,compute_cond=False,div_known=False)
 #RunProblemSplitGeom(kk=4,apgamma=5e-2,apalpha=1e-3,compute_cond=False,div_known=True)
+
 #RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-4,gamma_CIP_primal_str="gamma-CIP-primal-0p0001")
 #RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = -5e-2,gamma_CIP_primal_str="gamma-CIP-primal-m0p05")
+#RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 5e-2,gamma_CIP_primal_str="gamma-CIP-primal-0p05")
 
 #RunProblemJumpEtaDataBottom(kk=4,apgamma=1e-4,apalpha=1e-3,mu_plus=2,mu_minus=1)
-RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_minus=1)
+#RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_plus=.5,mu_minus=1)
