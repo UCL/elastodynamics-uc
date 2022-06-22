@@ -2321,7 +2321,7 @@ def RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_min
     for i in range(n_ref): 
         ls_mesh.append( get_mesh_bottom_data(h_init=h_init/2**i,eta=eta) )
 
-    #DrawMeshTikz(msh=ls_mesh[1],name="BottomDataJumpEta",case_str="BottomDataJumpEta") 
+    DrawMeshTikz(msh=ls_mesh[1],name="BottomDataJumpIncl",case_str="BottomDataJumpIncl") 
     
     mu_plus = mu_plus
     #mu_plus = 1
