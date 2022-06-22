@@ -236,6 +236,50 @@ def DrawMeshTikz(msh,name,case_str="dummy"):
             file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\\mu_-$}}  }} }}; \n".format(0.1*ddx,0.45*ddx))
             file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\\mu_+$}}  }} }}; \n".format(0.1*ddx,0.75*ddx))
 
+        if case_str == "BottomDataJumpIncl":
+            eta = 0.6 
+            def is_in_omega(coord):
+                if (coord[1] <= 0.25+1e-4):
+                    return True 
+                else:
+                    return False 
+            el_in_omega = np.all(np.array([is_in_omega(coord) for coord in coords ])) 
+            def is_in_Bplus(coord):
+                if (coord[0] >= 0.25 and coord[0] <= 0.75 and coord[1] >= eta and coord[1] <= 0.9): 
+                    return True
+                else:
+                    return False 
+            def is_in_Bminus(coord):    
+                if (coord[0] >= 0.25 and coord[0] <= 0.75 and coord[1] >= 0.25 and coord[1] <= eta): 
+                    return True
+                else:
+                    return False 
+            el_in_Bplus = np.all(np.array([is_in_Bplus(coord) for coord in coords ]))
+            el_in_Bminus = np.all(np.array([is_in_Bminus(coord) for coord in coords ]))
+
+            if el_in_omega:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.5] {1} -- {2} -- {3} -- cycle; \n".format("cyan", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            elif el_in_Bplus:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.5] {1} -- {2} -- {3} -- cycle; \n".format("red", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            elif el_in_Bminus: 
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.5] {1} -- {2} -- {3} -- cycle; \n".format("green!70!blue", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            else:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.0] {1} -- {2} -- {3} -- cycle; \n".format("gray", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+
+            
+    if case_str == "BottomDataJumpIncl":
+        eta  = 0.6
+        file.write("\\draw[pattern =crosshatch dots] {0} rectangle {1}; \n".format( (ddx*0.25,ddx*0.25) , (ddx*0.75,ddx*0.9) ))
+
+        file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$B_+$}}  }} }}; \n".format(0.5*ddx,0.8*ddx))
+        file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$B_-$}}  }} }}; \n".format(0.5*ddx,0.35*ddx))
+        file.write("\\node (RL) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\omega$}}  }} }}; \n".format(0.5*ddx,0.1*ddx))
+        
+
+        file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\\mu_-$}}  }} }}; \n".format(0.1*ddx,eta*ddx))
+        file.write("\\node (Rp) at ({0},{1}) [pattern = crosshatch dots,fill=white,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\\mu_+$}}  }} }}; \n".format(0.5*ddx,eta*ddx))
+
+        
     file.write("\\end{tikzpicture} \n") 
     file.write("\\end{document} \n")           
     file.close()
