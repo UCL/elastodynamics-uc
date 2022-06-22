@@ -354,11 +354,14 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
     a += ufl.inner(sigma(u),epsilon(w)) * ufl.dx - rho * ufl.inner(u,w) * dx
     if abs(gamma_CIP_primal) > 1e-14:
         hbar = 0.5*(h('+')+h('-'))
-        a += gamma_CIP_primal * hbar * ufl.inner(ufl.jump(sigma(u),n),ufl.jump(sigma(w),n))*ufl.dS 
+        if order >= 1:
+            a += gamma_CIP_primal * hbar * ufl.inner(ufl.jump(sigma(u),n),ufl.jump(sigma(w),n))*ufl.dS 
+            a += gamma_CIP_primal * hbar * ufl.inner(ufl.jump(sigma(v),n),ufl.jump(sigma(z),n))*ufl.dS 
             #a += gamma_CIP_primal * hbar * ufl.inner(ufl.jump(ufl.grad(u),n),ufl.jump(ufl.grad(w),n))*ufl.dS 
             #a += gamma_CIP_primal * hbar * ufl.inner(ufl.jump(ufl.grad(u)),ufl.jump(ufl.grad(w)))*ufl.dS 
-        if order == 2:
+        if order >= 2:
             a += gamma_CIP_primal * hbar**3 * ufl.inner(ufl.jump( ufl.grad(sigma(u)),n),ufl.jump(ufl.grad(sigma(w)),n))*ufl.dS 
+            a += gamma_CIP_primal * hbar**3 * ufl.inner(ufl.jump( ufl.grad(sigma(v)),n),ufl.jump(ufl.grad(sigma(z)),n))*ufl.dS 
             #a += gamma_CIP_primal * hbar**3 * ufl.inner(ufl.jump(ufl.grad(ufl.grad(u)),n),ufl.jump(ufl.grad(ufl.grad(w)),n))*ufl.dS 
             #a += gamma_CIP_primal * hbar**3 * ufl.inner(ufl.jump(ufl.grad(ufl.grad(u))),ufl.jump(ufl.grad(ufl.grad(w))))*ufl.dS 
             #a += gamma_CIP_primal * hbar * ufl.inner(ufl.jump(ufl.grad(u),n),ufl.jump(ufl.grad(w),n))*ufl.dS 
@@ -2470,7 +2473,7 @@ def RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_min
 #RunProblemConvexOscillatory(kk=6,compute_cond=False,perturb_theta=0)
 #RunProblemJump(kk=4,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_minus=2)
 
-RunProblemJump(kk=8,apgamma=1e-5,apalpha=1e-3,mu_plus=2,mu_minus=1)
+#RunProblemJump(kk=8,apgamma=1e-5,apalpha=1e-3,mu_plus=2,mu_minus=1)
 
 
 #RunProblemSplitGeom(kk=1,apgamma=1e-3,apalpha=1e-5,compute_cond=False,div_known=False)
@@ -2491,6 +2494,7 @@ RunProblemJump(kk=8,apgamma=1e-5,apalpha=1e-3,mu_plus=2,mu_minus=1)
 #RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-4,gamma_CIP_primal_str="gamma-CIP-primal-0p0001")
 #RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = -5e-2,gamma_CIP_primal_str="gamma-CIP-primal-m0p05")
 #RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 5e-2,gamma_CIP_primal_str="gamma-CIP-primal-0p05")
+#RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-1,gamma_CIP_primal_str="gamma-CIP-primal-0p1")
 
 #RunProblemJumpEtaDataBottom(kk=4,apgamma=1e-4,apalpha=1e-3,mu_plus=2,mu_minus=1)
 #RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_plus=.5,mu_minus=1)
