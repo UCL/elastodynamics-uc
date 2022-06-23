@@ -360,11 +360,9 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
             #a += gamma_CIP_primal * hbar * ufl.inner(ufl.jump(ufl.grad(u),n),ufl.jump(ufl.grad(w),n))*ufl.dS 
             #a += gamma_CIP_primal * hbar * ufl.inner(ufl.jump(ufl.grad(u)),ufl.jump(ufl.grad(w)))*ufl.dS 
         if order >= 2:
+            a += gamma_CIP_primal * hbar**3 * ufl.inner(ufl.jump( ufl.grad(sigma(u)),n),ufl.jump(ufl.grad(sigma(v)),n))*ufl.dS 
             a += gamma_CIP_primal * hbar**3 * ufl.inner(ufl.jump( ufl.grad(sigma(u)),n),ufl.jump(ufl.grad(sigma(w)),n))*ufl.dS 
             a += gamma_CIP_primal * hbar**3 * ufl.inner(ufl.jump( ufl.grad(sigma(v)),n),ufl.jump(ufl.grad(sigma(z)),n))*ufl.dS 
-            #a += gamma_CIP_primal * hbar**3 * ufl.inner(ufl.jump(ufl.grad(ufl.grad(u)),n),ufl.jump(ufl.grad(ufl.grad(w)),n))*ufl.dS 
-            #a += gamma_CIP_primal * hbar**3 * ufl.inner(ufl.jump(ufl.grad(ufl.grad(u))),ufl.jump(ufl.grad(ufl.grad(w))))*ufl.dS 
-            #a += gamma_CIP_primal * hbar * ufl.inner(ufl.jump(ufl.grad(u),n),ufl.jump(ufl.grad(w),n))*ufl.dS 
         #if order == 3:
             #a += gamma_CIP_primal * 1e-2 * hbar**5 * ufl.inner(ufl.jump(  ufl.grad(ufl.grad(sigma(u))),n),ufl.jump(ufl.grad(ufl.grad(sigma(w))),n))*ufl.dS 
             #a += gamma_CIP_primal * hbar**5 * ufl.inner(ufl.jump( ufl.grad(ufl.grad(ufl.grad(u))),n),ufl.jump(ufl.grad(ufl.grad(ufl.grad(w))),n))*ufl.dS 
@@ -2491,7 +2489,12 @@ def RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_min
 #RunProblemSplitGeom(kk=1,apgamma=5e-2,apalpha=1e-3,compute_cond=False,div_known=False)
 #RunProblemSplitGeom(kk=4,apgamma=5e-2,apalpha=1e-3,compute_cond=False,div_known=True)
 
-#RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-4,gamma_CIP_primal_str="gamma-CIP-primal-0p0001")
+RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-4,gamma_CIP_primal_str="gamma-CIP-primal-0p0001")
+#RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-3,gamma_CIP_primal_str="gamma-CIP-primal-0p001")
+#RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-6,gamma_CIP_primal_str="gamma-CIP-primal-0p000001")
+#RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-5,gamma_CIP_primal_str="gamma-CIP-primal-0p00001")
+#RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = -1e-3,gamma_CIP_primal_str="gamma-CIP-primal-m0p001")
+
 #RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = -5e-2,gamma_CIP_primal_str="gamma-CIP-primal-m0p05")
 #RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 5e-2,gamma_CIP_primal_str="gamma-CIP-primal-0p05")
 #RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-1,gamma_CIP_primal_str="gamma-CIP-primal-0p1")
