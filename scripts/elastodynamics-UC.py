@@ -209,7 +209,7 @@ def get_reference_sol(type_str,kk=1,eta=0.6,mu_plus=2,mu_minus=1,lam=1.25,nn=5,k
         return None 
 
 
-def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False,export_VTK=False,rhs=None,mu_Ind=None,k_Ind=None,perturb_order=None,pGLS=None,compute_cond=False,GradTikhStab=False,div_known=False,gamma_CIP_primal = 1e-18): 
+def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False,export_VTK=False,rhs=None,mu_Ind=None,k_Ind=None,perturb_order=None,pGLS=None,compute_cond=False,GradTikhStab=False,div_known=False,gamma_CIP_primal = 0): 
 
     error_dict = {"L2-error-u-uh-B": None,
                   "H1-semi-error-u-uh-B": None,
@@ -2489,7 +2489,12 @@ def RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_min
 #RunProblemSplitGeom(kk=1,apgamma=5e-2,apalpha=1e-3,compute_cond=False,div_known=False)
 #RunProblemSplitGeom(kk=4,apgamma=5e-2,apalpha=1e-3,compute_cond=False,div_known=True)
 
-RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-4,gamma_CIP_primal_str="gamma-CIP-primal-0p0001")
+#RunProblemSplitGeom(kk=1,apgamma=1e-3,apalpha=1e-5,compute_cond=False,div_known=False)
+#RunProblemSplitGeom(kk=4,apgamma=1e-3,apalpha=1e-5,compute_cond=False,div_known=False)
+#RunProblemSplitGeom(kk=6,apgamma=1e-2,apalpha=1e-5,compute_cond=False,div_known=False)
+RunProblemSplitGeom(kk=1,apgamma=1e-2,apalpha=1e-5,compute_cond=False,div_known=False)
+
+#RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-4,gamma_CIP_primal_str="gamma-CIP-primal-0p0001")
 #RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-3,gamma_CIP_primal_str="gamma-CIP-primal-0p001")
 #RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-6,gamma_CIP_primal_str="gamma-CIP-primal-0p000001")
 #RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-5,gamma_CIP_primal_str="gamma-CIP-primal-0p00001")
