@@ -860,6 +860,8 @@ def RunProblemJump(kk=1,apgamma=1e-1,apalpha=1e-1,mu_plus=1,mu_minus=2):
     elastic_convex.rho = get_ksquared_const(kk)
     elastic_convex.lam = lam_const
     ls_mesh = get_mesh_hierarchy_fitted_disc(6,eta=eta)
+    
+    DrawMeshTikz(msh=ls_mesh[0],name="omega-splitgeom-mujump-lvl0",case_str="splitgeom-omega-mujump") 
     mu_plus = mu_plus
     #mu_plus = 1
     mu_minus = mu_minus
@@ -2471,7 +2473,7 @@ def RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_min
 #RunProblemConvexOscillatory(kk=6,compute_cond=False,perturb_theta=0)
 #RunProblemJump(kk=4,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_minus=2)
 
-#RunProblemJump(kk=8,apgamma=1e-5,apalpha=1e-3,mu_plus=2,mu_minus=1)
+RunProblemJump(kk=8,apgamma=1e-5,apalpha=1e-3,mu_plus=2,mu_minus=1)
 
 
 #RunProblemSplitGeom(kk=1,apgamma=1e-3,apalpha=1e-5,compute_cond=False,div_known=False)
@@ -2492,7 +2494,7 @@ def RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_min
 #RunProblemSplitGeom(kk=1,apgamma=1e-3,apalpha=1e-5,compute_cond=False,div_known=False)
 #RunProblemSplitGeom(kk=4,apgamma=1e-3,apalpha=1e-5,compute_cond=False,div_known=False)
 #RunProblemSplitGeom(kk=6,apgamma=1e-2,apalpha=1e-5,compute_cond=False,div_known=False)
-RunProblemSplitGeom(kk=1,apgamma=1e-2,apalpha=1e-5,compute_cond=False,div_known=False)
+#RunProblemSplitGeom(kk=1,apgamma=1e-2,apalpha=1e-5,compute_cond=False,div_known=False)
 
 #RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-4,gamma_CIP_primal_str="gamma-CIP-primal-0p0001")
 #RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-3,gamma_CIP_primal_str="gamma-CIP-primal-0p001")

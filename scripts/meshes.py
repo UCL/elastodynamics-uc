@@ -84,6 +84,7 @@ def DrawMeshTikz(msh,name,case_str="dummy"):
             file.write("\\node (RL) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .125\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$B$}}  }} }}; \n".format(0.5*ddx,0.45*ddx))
             
         if case_str == "splitgeom-omega":
+            eta = 0.6
             def is_in_dom(coord):
                 if (coord[0] <= 0.1 and coord[1] <= eta):
                     return True 
@@ -101,6 +102,25 @@ def DrawMeshTikz(msh,name,case_str="dummy"):
                 file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.2] {1} -- {2} -- {3} -- cycle; \n".format("gray", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
             file.write("\\node (RL) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .125\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\omega$}}  }} }}; \n".format(0.5*ddx,0.125*ddx))
 
+        if case_str == "splitgeom-omega-mujump":
+            eta = 0.6
+            def is_in_dom(coord):
+                if (coord[0] <= 0.1 and coord[1] <= eta):
+                    return True 
+                elif (coord[0] >= 0.9 and coord[1] <= eta):
+                    return True 
+                elif (coord[1] <= 0.25):
+                    return True
+                else:
+                    return False 
+            el_in_domain = np.all(np.array([is_in_dom(coord) for coord in coords ]))
+            #print("el_in_domain = ", el_in_domain)  
+            if el_in_domain:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.5] {1} -- {2} -- {3} -- cycle; \n".format("cyan", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            else:
+                file.write("\\draw[line width=0.01mm,draw =black, fill={0},fill opacity=0.2] {1} -- {2} -- {3} -- cycle; \n".format("gray", (ddx*coords[0][0],ddx*coords[0][1]) , (ddx*coords[1][0],ddx*coords[1][1]) , (ddx*coords[2][0],ddx*coords[2][1])  ))
+            file.write("\\node (RL) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .125\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\omega$}}  }} }}; \n".format(0.5*ddx,0.125*ddx))
+            
         if case_str == "splitgeom-B":
             tol = 1e-5
 
@@ -279,7 +299,12 @@ def DrawMeshTikz(msh,name,case_str="dummy"):
         file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\\mu_-$}}  }} }}; \n".format(0.1*ddx,eta*ddx))
         file.write("\\node (Rp) at ({0},{1}) [pattern = crosshatch dots,fill=white,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\\mu_+$}}  }} }}; \n".format(0.5*ddx,eta*ddx))
 
-        
+    if case_str == "splitgeom-omega-mujump":
+        eta  = 0.6
+        file.write("\\draw[pattern =crosshatch dots] {0} rectangle {1}; \n".format( (ddx*0.0,ddx*eta) , (ddx*1.0,ddx*1.0) ))
+        file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\\mu_+$}}  }} }}; \n".format(0.5*ddx, (eta + 0.5*(1-eta))*ddx)) 
+        file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\\mu_-$}}  }} }}; \n".format(0.5*ddx, ( 0.6*eta *ddx)))
+
     file.write("\\end{tikzpicture} \n") 
     file.write("\\end{document} \n")           
     file.close()
