@@ -1,0 +1,116 @@
+\documentclass[tikz]{standalone}
+\usetikzlibrary{spy,shapes,shadows,calc,pgfplots.groupplots}
+\usepackage{amsmath}
+\usepackage{physics} 
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.3}
+\usepackage{amsmath}
+\DeclareFontFamily{OT1}{pzc}{}
+\DeclareFontShape{OT1}{pzc}{m}{it}{<-> s * [1.10] pzcmi7t}{}
+\DeclareMathAlphabet{\mathpzc}{OT1}{pzc}{m}{it}
+\newcommand{\ddtn}{\operatorname{dtn}}
+
+\pgfplotsset{
+  legend style = {font=\small}
+}
+
+\begin{document}
+\begin{tikzpicture}[scale = 0.8]
+
+%\begin{axis}[
+\begin{groupplot}[
+    group style={
+        group name=dtn,
+        group size=1 by 2,
+        %xticklabels at=edge bottom,
+        horizontal sep=25pt,
+        vertical sep=30pt,
+   },
+   %name = dtnplot,
+   height = 5cm,
+   width = 6.5cm,
+   every axis plot/.append style={thick},
+   axis y line*=left,
+   legend pos = south east,
+   %ymode = log,
+   %xmin = 0,
+   %xmax = 11000,
+   %ymin = -20,
+   %ymax = 20,
+   %restrict y to domain=-1e2:1e2,
+   %label style={at={(axis description cs:0.5,-0.08)},anchor=north},
+   %every x tick scale label/.style={at={(xticklabel cs:0.925)},anchor=south west},
+   %x label style={at={(axis description cs:0.975,0.085)},anchor=east},
+   %xlabel= { $\lambda$},
+   ]
+    \nextgroupplot[ 
+    %xmin=0,xmax=1.6e4,
+    %xtick={25, 125, 250, 500, 800, 1000},
+    %axis x line*=middle,
+    %axis y line=middle, 
+    %ymin = -350,
+    %ymax = 350,
+    %width=9cm,
+    %restrict y to domain=-4e2:4e2,
+    %xtick={0,2e3,4e3,6e3,8e3,10e3,12e3,14e3},
+    xlabel= { $k$ },
+    ymode = log,
+    x label style={at={(axis description cs:0.8,0.1)},anchor=east},
+    legend pos = north west,
+    title = { $p=1$},
+	]
+
+    \addplot[red,very thick] 
+   	table[mark=none,x=k,y=k-norm-order1] {../data/Convex-Oscillatory-kh-scaling-well-posed-order1-ngs-gamma-CIP-primal-2p5e0.dat}; 
+    \addplot[blue,dashed,very thick]  
+	table[mark=none,x=k,y=k-norm-order1] {../data/Convex-Oscillatory-kh-scaling-ill-posed-order1-ngs-gamma-CIP-primal-2p5e0.dat}; 
+    \addplot[gray,dashed,thick,forget plot] 
+	table[mark=none,x=k,y expr={1.0e-0*\thisrowno{0}}] {../data/Convex-Oscillatory-kh-scaling-well-posed-order1-ngs-gamma-CIP-primal-2p5e0.dat}; 
+    %\addplot[gray,dotted,thick,forget plot] 
+    %	table[mark=none,x=k,y expr={1e-2*\thisrowno{0}* \thisrowno{0}}] {../data/Convex-Oscillatory-kh-scaling-well-posed-tuned.dat}; 
+ 
+	\legend{well-posed, ill-posed} 	    
+    
+    \nextgroupplot[ 
+    %xmin=0,xmax=1.6e4,
+    %xtick={25, 125, 250, 500, 800, 1000},
+    %axis x line*=middle,
+    %axis y line=middle, 
+    %ymin = -350,
+    %ymax = 350,
+    %width=9cm,
+    %restrict y to domain=-4e2:4e2,
+    %xtick={0,2e3,4e3,6e3,8e3,10e3,12e3,14e3},
+    xlabel= { $k$ },
+    x label style={at={(axis description cs:0.8,0.1)},anchor=east},
+    title = {$p=2$},
+    ymode = log,
+    legend pos = north west,
+	]
+
+    \addplot[red,very thick,forget plot] 
+   	table[mark=none,x=k,y=k-norm-order2] {../data/Convex-Oscillatory-kh-scaling-well-posed-order2-ngs-gamma-CIP-primal-2p5e0.dat}; 
+    \addplot[blue,dashed,very thick,forget plot]  
+	table[mark=none,x=k,y=k-norm-order2] {../data/Convex-Oscillatory-kh-scaling-ill-posed-order2-ngs-gamma-CIP-primal-2p5e0.dat}; 
+    \addplot[gray,dashed,thick] 
+	table[mark=none,x=k,y expr={7e-2*\thisrowno{0}}] {../data/Convex-Oscillatory-kh-scaling-well-posed-order1-ngs-gamma-CIP-primal-2p5e0.dat}; 
+    \addplot[gray,dotted,thick] 
+	table[mark=none,x=k,y expr={7e-2*\thisrowno{0}* \thisrowno{0}}] {../data/Convex-Oscillatory-kh-scaling-well-posed-order1-ngs-gamma-CIP-primal-2p5e0.dat} ; 
+  
+    \legend{$\mathcal{O}(k)$, $\mathcal{O}(k^2)$ } 	    
+ 
+  \end{groupplot}
+\end{tikzpicture}
+\end{document}
+
+
+
+
+
+
+
+
+
+
+
+
