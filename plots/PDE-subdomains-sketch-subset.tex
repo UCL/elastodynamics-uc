@@ -1,0 +1,83 @@
+\documentclass{standalone} 
+\usepackage{tikz} 
+\usepackage{pgfplots} 
+\usepackage{xcolor} 
+\usetikzlibrary{shapes,arrows,shadows,snakes,calendar,matrix,spy,backgrounds,folding,calc,positioning,patterns,hobby} 
+\begin{document} 
+
+% All UCL colors are defined in terms of cmyk
+\selectcolormodel{cmyk}
+
+% Define UCL colours (in addition to black and white)
+%% dark colours: use white text
+\definecolor{darkpurple}{cmyk}{0.32,0.42,0,0.55}
+\definecolor{darkred}{cmyk}{0,1,0.30,0.61}
+\definecolor{darkblue}{cmyk}{1,0.24,0,0.64}
+\definecolor{darkgreen}{cmyk}{0,0,0.91,0.79}
+\definecolor{darkbrown}{cmyk}{0.57,0.80,1,0.45}
+\definecolor{richred}{cmyk}{0,1,0.62,0}
+\definecolor{midred}{cmyk}{0,0.79,1,0}
+\definecolor{navyblue}{cmyk}{1,0.57,0,0.40}
+\definecolor{midgreen}{cmyk}{0.25,0,0.80,0.30}
+\definecolor{darkgrey}{cmyk}{0,0.09,0.16,0.43}
+\definecolor{pink}{cmyk}{0,1,0.35,0.27} % no banner image
+\definecolor{orange}{cmyk}{0,0.45,0.91,0} 
+\definecolor{brightblue}{cmyk}{0.92,0,0.15,0.05}
+\definecolor{brightgreen}{cmyk}{0.12,0,0.79,0.06}
+\definecolor{lightgrey}{cmyk}{0,0.04,0.09,0.24}
+%% light colours: use black text
+\definecolor{lightpurple}{cmyk}{0.17,0.25,0.15,0}
+\definecolor{yellow}{cmyk}{0,0.25,0.95,0}
+\definecolor{lightblue}{cmyk}{0.27,0.03,0,0.13}
+\definecolor{lightgreen}{cmyk}{0.14,0,0.36,0.10}
+\definecolor{stone}{cmyk}{0,0.02,0.06,0.07}
+
+%\begin{tikzpicture}[>=latex,scale=1.0,transform shape,label distance=-5,use Hobby shortcut ]
+\begin{tikzpicture}[scale=1.0,transform shape,use Hobby shortcut,tight background ]
+
+
+
+\path
+  (-0.5,-2.0) coordinate (z0)
+  (1.5,-4.25) coordinate (z0a)
+  (4.25,0.5) coordinate (z1)
+  (3.0,2.0) coordinate (z2)
+  (1.75,3.5) coordinate (z3)
+  (-2.0,5.0) coordinate (z3a)
+  (-5.5,2.0) coordinate (z3b)
+  (-4.75,0.0) coordinate (z3c)
+  (-3.0,-1.25) coordinate (z4)
+  (-0.25,-0.5) coordinate (z5); 
+  \draw[black, ultra thick,closed,thick,fill=white,fill opacity=1.0] (z0) .. (z0a) .. (z1) .. (z2) .. (z3) .. (z3a) .. (z3b) .. (z3c) .. (z4) ..(z5);
+  
+  
+\path
+  (0.05,-1.55) coordinate (w0)
+  (3.85,0.05) coordinate (w1)
+  (2.55,1.55) coordinate (w2)
+  (0.55,3.05) coordinate (w3)
+  (-2.55,-0.55) coordinate (w4)
+  (0.0,-0.05) coordinate (w5); 
+ %\draw[black, pattern =horizontal lines, thick,closed,thick,fill opacity=1.0] (w0) .. (w1) .. (w2) .. (w3) .. (w4) ..(w5);
+ \draw[black, ultra thick,closed,fill=blue!20, fill opacity=1.0] (w0) .. (w1) .. (w2) .. (w3) .. (w4) ..(w5);
+
+\path
+  (2.0,-2.0) coordinate (v0)
+  (3.5,-1.0) coordinate (v1)
+  (2.0,1.25) coordinate (v2)
+  (1.0,-1.0) coordinate (v3);
+  %\draw[black, thick,closed,thick,fill=orange ,fill opacity=0.7] (v0) .. (v1) .. (v2) .. (v3);
+  %\draw[black, pattern=vertical lines, thick,closed] (v0) .. (v1) .. (v2) .. (v3);
+  \draw[black,ultra thick, closed,fill=orange,  fill opacity = 1.0 ] (v0) .. (v1) .. (v2) .. (v3);
+
+  \draw[] ( -1.75 ,3.75 )  node[above]{ \Huge  \bf  $ \Omega$ };
+  \draw[] ( -1.5 , 1.0 )  node[fill=white,above]{ \Huge  \bf  $ B$ };
+  \draw[ ] ( 2.25 , -0.5 )  node[fill=white, above]{ \Huge  \bf    $ \omega$  };
+
+  %\draw[] ( 0.0 , -0.5 )  node[]{ test };
+  %\draw[] ( -3.0 , -1.0 )  node[]{ test };
+
+
+\end{tikzpicture} 
+
+\end{document} 
