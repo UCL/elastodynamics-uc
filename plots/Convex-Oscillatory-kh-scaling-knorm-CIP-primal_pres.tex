@@ -58,7 +58,7 @@
     %x label style={at={(axis description cs:0.575,-0.15)},anchor=east},
     legend pos = north west,
     ymode = log,
-    title = { $p=1, \beta = 10^{-4}$ },
+    title = { $p=1, \beta_1 = 10^{-4}$ },
 	]
 
     \addplot[red,very thick] 
@@ -77,15 +77,15 @@
     %xtick={25, 125, 250, 500, 800, 1000},
     %axis x line*=middle,
     %axis y line=middle, 
-    %ymin = -350,
-    %ymax = 350,
+    ymin = 3e-2,
+    ymax = 5e0,
     %width=9cm,
     %restrict y to domain=-4e2:4e2,
     %xtick={0,2e3,4e3,6e3,8e3,10e3,12e3,14e3},
     xlabel= { $k$ },
     ymode = log,
     %x label style={at={(axis description cs:0.575,-0.15)},anchor=east},
-    title = { $p=2, \beta = 10^{-4}$ }, 
+    title = { $p=2, \beta_1 = \beta_2 = 10^{-4}$ }, 
     legend pos = north west,
 	]
 
@@ -110,9 +110,11 @@
     %width=9cm,
     %restrict y to domain=-4e2:4e2,
     %xtick={0,2e3,4e3,6e3,8e3,10e3,12e3,14e3},
+    ymin = 3e-2,
+    ymax = 5e0,
     xlabel= { $k$ },
     %x label style={at={(axis description cs:0.575,-0.15)},anchor=east},
-    title = {$p=2, \beta =   10^{-6}$  },
+    title = {$p=2, \beta_1 = \beta_2 =  10^{-6}$  },
     legend pos = north west,
     ymode = log,
 	]
