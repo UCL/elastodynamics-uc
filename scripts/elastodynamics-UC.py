@@ -2281,9 +2281,12 @@ def RunProblemJumpEtaDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_minu
             #plt.title("L2-error")
             plt.show()
 
-def RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_minus=2): 
+def RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_i=1,mu_e=2): 
     
     eta = 0.6
+    
+    mu_plus = mu_i 
+    mu_minus = mu_e 
     
     x_L = 0.25
     x_R = 0.75
@@ -2455,7 +2458,7 @@ def RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_min
 # pgamma = 1e-5/kk**2 , pGLS = 1e-4/kk**4 
 # Runs for draft
 # 
-# RunProblemConvexOscillatoryStabSweep(kk=6,compute_cond=True) # Figure 2
+#RunProblemConvexOscillatoryStabSweep(kk=6,compute_cond=True) # Figure 2
 #RunProblemConvexOscillatory(kk=6,compute_cond=True) # Figure 3
 #RunProblemConvexOscillatory(kk=1,compute_cond=False,perturb_theta=0)
 #RunProblemConvexOscillatory(kk=6,compute_cond=False,perturb_theta=0)
@@ -2468,12 +2471,18 @@ def RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_min
 #RunProblemSplitGeom(kk=1,apgamma=1e-3,apalpha=1e-5,compute_cond=False,div_known=False)
 #RunProblemConvexOscillatory(kk=6,compute_cond=True) 
 
+#RunProblemJump(kk=4,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_minus=2)
+#RunProblemJump(kk=8,apgamma=1e-5,apalpha=1e-3,mu_plus=2,mu_minus=1)
+
+#RunProblemJumpEtaDataBottom(kk=4,apgamma=1e-4,apalpha=1e-3,mu_i=2,mu_e=1)
+RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_i=.5,mu_e=1)
+
 
 # additional runs, debugging
 #RunProblemConvexOscillatory(kk=6,compute_cond=False,perturb_theta=0)
 #RunProblemJump(kk=4,apgamma=1e-5,apalpha=1e-3,mu_plus=1,mu_minus=2)
 
-RunProblemJump(kk=8,apgamma=1e-5,apalpha=1e-3,mu_plus=2,mu_minus=1)
+#RunProblemJump(kk=8,apgamma=1e-5,apalpha=1e-3,mu_plus=2,mu_minus=1)
 
 
 #RunProblemSplitGeom(kk=1,apgamma=1e-3,apalpha=1e-5,compute_cond=False,div_known=False)

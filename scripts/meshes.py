@@ -296,8 +296,8 @@ def DrawMeshTikz(msh,name,case_str="dummy"):
         file.write("\\node (RL) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\omega$}}  }} }}; \n".format(0.5*ddx,0.1*ddx))
         
 
-        file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\\mu_-$}}  }} }}; \n".format(0.1*ddx,eta*ddx))
-        file.write("\\node (Rp) at ({0},{1}) [pattern = crosshatch dots,fill=white,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\\mu_+$}}  }} }}; \n".format(0.5*ddx,eta*ddx))
+        file.write("\\node (Rp) at ({0},{1}) [fill=white,fill opacity=1.0,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\\mu_e$}}  }} }}; \n".format(0.1*ddx,eta*ddx))
+        file.write("\\node (Rp) at ({0},{1}) [pattern = crosshatch dots,fill=white,inner sep = 2.5pt] {{ \\resizebox{{ .15\\linewidth}}{{!}}{{  \\textcolor{{black}}{{$\\mu_i$}}  }} }}; \n".format(0.5*ddx,eta*ddx))
 
     if case_str == "splitgeom-omega-mujump":
         eta  = 0.6
