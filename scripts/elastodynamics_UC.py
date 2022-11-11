@@ -16,6 +16,7 @@ from slepc4py import SLEPc
 #def gamma_analytical(t,p=1):
 #    if p ==1:
 #        return t**2*(np.cos( ) 
+np.random.seed(123)
 
 def get_h_max(mesh):
     mesh.topology.create_connectivity(2, 0)
@@ -59,7 +60,7 @@ def condest(bilinear_form,bcs,msh,target_shift=1e-13):
     evs = eigensolver.getConverged()
     eigen_min = eigensolver.getEigenvalue(0)
     cond_est = abs(eigen_max)/abs(eigen_min)
-    print("cond = " , cond_est)
+    #print("cond = " , cond_est)
     return cond_est
 
 def get_reference_sol(type_str,kk=1,eta=0.6,mu_plus=2,mu_minus=1,lam=1.25,nn=5,km=1,kp=1,mu=1,x_L = -0.75,x_R = 0.75,y_L = -0.75,y_R = 0.75
@@ -319,7 +320,7 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
     bc = fem.dirichletbc(u_D, boundary_dofs1, VW.sub(1))
     bcs = [bc] 
     ue_h = fem.Function(V0)
-    u_expr = fem.Expression(ue, V0.element.interpolation_points)
+    u_expr = fem.Expression(ue, V0.element.interpolation_points())
     ue_h.interpolate(u_expr)
     #print(" ue_h.x.array[:] = ", ue_h.x.array[:]  )
     Phu = ue_h
@@ -412,7 +413,7 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
     
     if export_VTK:
         uex = fem.Function(V0)
-        u_expr = fem.Expression(ue, V0.element.interpolation_points)
+        u_expr = fem.Expression(ue, V0.element.interpolation_points())
         uex.interpolate(u_expr)
         udiff = fem.Function(V0)
         udiff.x.array[:] = np.abs(uh.x.array[V0_to_VW] - uex.x.array)
@@ -2475,7 +2476,7 @@ def RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_i=1,mu_e=2):
 #RunProblemJump(kk=8,apgamma=1e-5,apalpha=1e-3,mu_plus=2,mu_minus=1)
 
 #RunProblemJumpEtaDataBottom(kk=4,apgamma=1e-4,apalpha=1e-3,mu_i=2,mu_e=1)
-RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_i=.5,mu_e=1)
+#RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_i=.5,mu_e=1)
 
 
 # additional runs, debugging
@@ -2516,4 +2517,9 @@ RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_i=.5,mu_e=1)
 #RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-1,gamma_CIP_primal_str="gamma-CIP-primal-0p1")
 
 #RunProblemJumpEtaDataBottom(kk=4,apgamma=1e-4,apalpha=1e-3,mu_plus=2,mu_minus=1)
-#RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_plus=.5,mu_minus=1)
+
+#RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apa)
+
+
+#RunProblemConvexOscillatory(kk=6,compute_cond=False)
+

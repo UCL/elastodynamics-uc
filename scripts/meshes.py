@@ -14,7 +14,8 @@ from ufl import (SpatialCoordinate, TestFunction, TrialFunction,
 from mpi4py import MPI
 from petsc4py.PETSc import ScalarType
 from math import pi
-from dolfinx.io import XDMFFile, ufl_mesh_from_gmsh,extract_gmsh_geometry,extract_gmsh_topology_and_markers,cell_perm_gmsh
+#from dolfinx.io import XDMFFile, ufl_mesh_from_gmsh,extract_gmsh_geometry,extract_gmsh_topology_and_markers,cell_perm_gmsh
+from dolfinx.io import XDMFFile, gmshio
 from dolfinx.cpp.io import perm_gmsh
 from dolfinx.mesh import CellType, create_mesh
 from dolfinx.cpp import mesh as cmesh
@@ -1015,7 +1016,7 @@ def get_mesh_inclusion(h_init=1.25,order=2):
 
     cells = cells[:, perm_gmsh(cell_type, cells.shape[1])]
     #print("cells.shape[1] =, ",cells.shape[1])
-    msh = create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh_from_gmsh(gmsh_cell_id, x.shape[1]))
+    msh = create_mesh(MPI.COMM_WORLD, cells, x, gmshio.ufl_mesh(gmsh_cell_id, x.shape[1]))
     #msh = create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh_from_gmsh(gmsh_cell_id,2))
     #print("x.shape[1] =", x.shape[1])
 
@@ -1196,7 +1197,7 @@ def get_mesh_inclusion_square(h_init=1.25,x_L=-1.25,x_R=1.25,y_L=-1.25,y_R=1.25,
 
     cells = cells[:, perm_gmsh(cell_type, cells.shape[1])]
     #print("cells.shape[1] =, ",cells.shape[1])
-    msh = create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh_from_gmsh(gmsh_cell_id, x.shape[1]))
+    msh = create_mesh(MPI.COMM_WORLD, cells, x, gmshio.ufl_mesh(gmsh_cell_id, x.shape[1]))
     #msh = create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh_from_gmsh(gmsh_cell_id,2))
     #print("x.shape[1] =", x.shape[1])
 
@@ -1318,7 +1319,7 @@ def get_mesh_bottom_data(h_init=1.25,eta=0.6):
 
     cells = cells[:, perm_gmsh(cell_type, cells.shape[1])]
     #print("cells.shape[1] =, ",cells.shape[1])
-    msh = create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh_from_gmsh(gmsh_cell_id, x.shape[1]))
+    msh = create_mesh(MPI.COMM_WORLD, cells, x, gmshio.ufl_mesh(gmsh_cell_id, x.shape[1]))
     #msh = create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh_from_gmsh(gmsh_cell_id,2))
     #print("x.shape[1] =", x.shape[1])
 
