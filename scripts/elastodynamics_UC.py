@@ -404,9 +404,6 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
             #L += ufl.inner(q_div,ufl.nabla_div(v))*dx + omega_ind * ufl.inner(ue[0],v[0]) * dx 
             L +=  ufl.inner(q_div,ufl.nabla_div(v))*dx + omega_ind * ufl.inner(ue,v) * dx 
         else:
-
-
-The time for each speaker will be 12 minutes, split into 10 minutes for the talk and 2 minutes for the discussion & switching to the next speaker.
             L += omega_ind * ufl.inner(ue,v) * dx 
             #L += ufl.inner(omega_ind*ue,v) * dx 
 
