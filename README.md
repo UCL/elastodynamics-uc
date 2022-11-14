@@ -129,4 +129,33 @@ To generate Fig.8 switch to the directory `scripts` and run
 ## Fig 10 
 Change to directory `scripts`. Run 
 
+    python3 jump_incl_data_bottom.py 4 1 1
+    python3 jump_incl_data_bottom.py 1 1 1
+    python3 jump_incl_data_bottom.py 1 2 1
+    python3 jump_incl_data_bottom.py 1 .5 1
+
+Here, the first argument passed to the script is the wavenumber __k__. The second argument is the shear in the interior __a__ 
+and the third the shear in the exterior __b__. The script generates files of the form "jump-incl-DataBottom-mup__a__-mum__b__-ill-posed-k__k__-order3.dat"
+which will be saved to the folder `data`. The data in all these files is stored in the same format. The first column `ndof` contains the number of degrees of 
+freedom and the second column `h` the meshwidth. The fourth column `L2-error-u-uh-B-minus` contains the relative L2-error in Bminus and the fith column 
+`L2-error-u-uh-B-plus` the relative L2-error in Bplus.
+
+To generate Fig. 10 switch to the folder `plots` and run 
+
+    latexmk -pdf Bottom-data-incl-k4.tex 
+    latexmk -pdf Bottom-data-incl-k1.tex
+
+## Fig C.2 
+Change to directory `scripts`. Run 
+
+    python3 jump_square.py
+
+Files of the form "jump-square-mup__a__-mum__b__-ill-posed-k4-order__j__.dat" and "jump-square-mup1-mum2-ill-posed-k4-order__j__.dat" will be 
+created in the folder `data`. Here, __j__ denotes the polynomial order, __a__ the value of the shear in the interior square and __b__ the value 
+of the shear in the exterior. The data in these files follows the same ordering as the data in the files generated for Fig 10 (see description above). 
+
+To generate C.2 switch to the folder `plots` and run 
+   
+    latexmk -pdf Jump-mu-incl-domain.tex     
+
 
