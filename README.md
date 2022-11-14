@@ -124,5 +124,9 @@ whereas the relative errors in Omega plus can be found in the column `L2-error-u
 
 To generate Fig.8 switch to the directory `scripts` and run 
 
+    latexmk -pdf Jump-Split-domain-k4.tex
+
+## Fig 10 
+Change to directory `scripts`. Run 
 
 
