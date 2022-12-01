@@ -145,17 +145,5 @@ To generate Fig. 10 switch to the folder `plots` and run
     latexmk -pdf Bottom-data-incl-k4.tex 
     latexmk -pdf Bottom-data-incl-k1.tex
 
-## Fig C.2 
-Change to directory `scripts`. Run 
-
-    python3 jump_square.py
-
-Files of the form "jump-square-mup__a__-mum__b__-ill-posed-k4-order__j__.dat" and "jump-square-mup1-mum2-ill-posed-k4-order__j__.dat" will be 
-created in the folder `data`. Here, __j__ denotes the polynomial order, __a__ the value of the shear in the interior square and __b__ the value 
-of the shear in the exterior. The data in these files follows the same ordering as the data in the files generated for Fig 10 (see description above). 
-
-To generate C.2 switch to the folder `plots` and run 
-   
-    latexmk -pdf Jump-mu-incl-domain.tex     
 
 
