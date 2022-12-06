@@ -376,7 +376,7 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
 
     
     if compute_cond:  
-        cond_est =  condest(a,bcs,msh,target_shift=1e-13)
+        cond_est =  condest(a,bcs,msh,target_shift=5e-13)
         print("cond = " , cond_est)
         error_dict["cond"] = cond_est
 

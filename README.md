@@ -53,7 +53,9 @@ and proceed as described in [How to reproduce](#repro).
 The `python` scripts for runnings the numerical experiments are located in the folder `scripts`. 
 To run an experiments we change to this folder and run the corresponding file.
 After execution has finished the produced data will be available in the folder `data`.
-To generate the plots as shown in the article from the produced data we change to the folder `plots` 
+For the purpose of comparison, the folder `data_save` contains a copy of the data which has been used for the plots in the paper. 
+The data in both folders should be identical.
+To generate the plots as shown in the article from the data just produced we change to the folder `plots` 
 and compile the corresponding `latex` file.
 Below we decribe the above process for each of the figures in the article in detail.
 For viewing the generated pdf file, say `figure.pdf`, the figure has to be copied to the host machine. 
