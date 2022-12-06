@@ -121,8 +121,11 @@ def RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_i=1,mu_e=2):
         eoc_order = { }
         h_order = { }
         L2_error_B_plus_order = { } 
-        L2_error_B_minus_order = { } 
+        L2_error_B_minus_order = { }
         for order in orders:
+            if order == 3 and (abs(mu_i - 1.0) < 1e-13) and (abs(mu_e - 1.0) < 1e-13):
+                print("multiplying pgamma")
+                pgamma *= 10
             l2_errors = [ ]
             L2_error_B_plus = [] 
             L2_error_B_minus = [] 
@@ -157,7 +160,7 @@ def RunProblemJumpInclDataBottom(kk=1,apgamma=1e-5,apalpha=1e-3,mu_i=1,mu_e=2):
             eoc_order[order] = round(eoc[-1],2)
             
             if MPI.COMM_WORLD.rank == 0:
-                name_str = "jump-incl-DataBottom-mup{0}-mum{1}-{2}-k{3}-order{4}.dat".format(mu_plus,mu_minus,problem_type,kk,order)
+                name_str = "jump-incl-DataBottom-mup{0}-mum{1}-{2}-k{3}-order{4}.dat".format(float(mu_plus),float(mu_minus),problem_type,float(kk),int(order))
                 results = [np.array(ndofs,dtype=float),np.array(h_order[order],dtype=float)]
                 header_str = "ndof h "
                 for error_type,error_str in zip([l2_errors, L2_error_B_minus, L2_error_B_plus ],["L2-error-u-uh-B","L2-error-u-uh-B-minus","L2-error-u-uh-B-plus"]):

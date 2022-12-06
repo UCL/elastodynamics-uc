@@ -138,7 +138,7 @@ Afterwards four files called "Convex-Oscillatory-kh-scaling-__X__-tuned-gamma-CI
 
 To generate Fig. 6, switch to the `plots` folder and compile 
 
-    latexmk -pdf latexmk -pdf Convex-Oscillatory-kh-scaling-knorm-CIP-primal_pres.tex
+    latexmk -pdf Convex-Oscillatory-kh-scaling-knorm-CIP-primal_pres.tex
 
 ## Fig 8 
 Change to directory `scripts`. Run 

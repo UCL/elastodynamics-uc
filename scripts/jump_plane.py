@@ -114,7 +114,9 @@ def RunProblemJump(kk=1,apgamma=1e-1,apalpha=1e-1,mu_plus=1,mu_minus=2):
             l2_errors = [ ]
             L2_error_B_plus = [] 
             L2_error_B_minus = [] 
-            ndofs = [] 
+            ndofs = []
+            if order == 3:
+                pgamma *= 5
             for msh in ls_mesh[:-order]:
                 errors = SolveProblem(problem=elastic_convex,msh=msh,refsol=refsol,order=order,pgamma=pgamma/order**3.5,palpha=palpha,add_bc=add_bc,export_VTK=True,rhs=rhs,mu_Ind=mu_Ind,pGLS=pGLS/order**3.5)
                 l2_error = errors["L2-error-u-uh-B"]

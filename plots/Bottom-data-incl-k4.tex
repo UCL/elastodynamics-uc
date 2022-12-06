@@ -61,21 +61,21 @@
 	]
 
     \addplot[red,very thick,mark=*] 
-   	table[x=ndof,y=L2-error-u-uh-B-minus] {../data/jump-incl-DataBottom-mup1-mum1-ill-posed-k4-order1.dat}; 
+   	table[x=ndof,y=L2-error-u-uh-B-minus] {../data/jump-incl-DataBottom-mup1.0-mum1.0-ill-posed-k4.0-order1.dat}; 
     \addplot[blue,very thick,mark=triangle]  
-	table[x=ndof,y=L2-error-u-uh-B-minus] {../data/jump-incl-DataBottom-mup1-mum1-ill-posed-k4-order2.dat}; 
+	table[x=ndof,y=L2-error-u-uh-B-minus] {../data/jump-incl-DataBottom-mup1.0-mum1.0-ill-posed-k4.0-order2.dat}; 
     \addplot[green!70!black,very thick,mark=x]  
-   	table[x=ndof,y=L2-error-u-uh-B-minus] {../data/jump-incl-DataBottom-mup1-mum1-ill-posed-k4-order3.dat}; 
+   	table[x=ndof,y=L2-error-u-uh-B-minus] {../data/jump-incl-DataBottom-mup1.0-mum1.0-ill-posed-k4.0-order3.dat}; 
     
     \addplot[red,very thick,mark=*,dashed,forget plot] 
-   	table[x=ndof,y=L2-error-u-uh-B-plus] {../data/jump-incl-DataBottom-mup1-mum1-ill-posed-k4-order1.dat}; 
+   	table[x=ndof,y=L2-error-u-uh-B-plus] {../data/jump-incl-DataBottom-mup1.0-mum1.0-ill-posed-k4.0-order1.dat}; 
     \addplot[blue,very thick,mark=triangle,dashed,forget plot]  
-	table[x=ndof,y=L2-error-u-uh-B-plus] {../data/jump-incl-DataBottom-mup1-mum1-ill-posed-k4-order2.dat}; 
+	table[x=ndof,y=L2-error-u-uh-B-plus] {../data/jump-incl-DataBottom-mup1.0-mum1.0-ill-posed-k4.0-order2.dat}; 
     \addplot[green!70!black,very thick,mark=x,dashed,forget plot]  
-   	table[x=ndof,y=L2-error-u-uh-B-plus] {../data/jump-incl-DataBottom-mup1-mum1-ill-posed-k4-order3.dat}; 
+   	table[x=ndof,y=L2-error-u-uh-B-plus] {../data/jump-incl-DataBottom-mup1.0-mum1.0-ill-posed-k4.0-order3.dat}; 
   
     \addplot[gray,dashed,thick] 
-	table[mark=none,x=ndof,y expr ={5e+1*\thisrowno{1}}] {../data/jump-incl-DataBottom-mup1-mum1-ill-posed-k4-order1.dat}; 
+	table[mark=none,x=ndof,y expr ={5e+1*\thisrowno{1}}] {../data/jump-incl-DataBottom-mup1.0-mum1.0-ill-posed-k4.0-order1.dat}; 
     %\addplot[gray,dotted,thick,forget plot] 
     %	table[mark=none,x=ndof,y expr ={4e+2*\thisrowno{1}*\thisrowno{1}}] {../data/jump-eta-DataBottom-mup2-mum1-ill-posed-k4-order2.dat}; 
     %\addplot[gray,dashdotted,thick,forget plot] 
