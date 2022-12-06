@@ -7,11 +7,47 @@ This repository contains the software, data and instructions to reproduce the nu
 
 # How to run / install
 
+We describe two options to setup the software for running the experiments. 
+
+* downloading a `docker image` from `Zenodo` or `Docker Hub` which contains all dependencies and tools to run the application,
+* or installing everything manually on your own local machine. 
+
+We recommend the first option as it is quick and convenient. The second option provides higher flexibility but may be more complicated. 
+Please contact <j.preuss@ucl.ac.uk> if problems occur. 
+
 ## Pulling the docker image from Docker Hub 
+* Please install the `docker` platform for your distribution as described [here](https://docs.docker.com/get-docker/).
+* After installation the `Docker daemon` has to be started. This can either be done on boot or manually. In most Linux 
+distributions the command for the latter is either `sudo systemctl start docker` or `sudo service docker start`.
+* Pull the docker image using the command `docker pull janosch2888/elastodynamics-uc:v1`. 
+* Run the image with `sudo docker run -it janosch2888/elastodynamics-uc:v1 bash `.
+* Proceed further as described in [How to reproduce](#repro).
 
 ## Downloading the docker image from Zenodo
+* For this option the first two steps are the same as above. 
+* Assuming that `elastodynamics-repro.tar` is the filename of the downloaded image, please load the image with `sudo docker load < elastodynamics-repro.tar`.
+* Run the image with `sudo docker run -it janosch2888/elastodynamics-uc:v1 bash `.
+* Proceed further as described in [How to reproduce](#repro).
 
 ## Manual installation
+You first need to compile a specific version of the finite element software `FEniCSx` on your machine. To this end, please compile `FEniCSx` from source 
+as described [here](https://docs.fenicsproject.org/dolfinx/main/python/installation.html#source) and `git checkout` the following commits: 
+
+* xtl: `e697c91e2a3ac571d120d2b093fb3b250d060a7d`
+* xtensor: `d1499d900733cd089bd868ca1ca5fdce01e89b97` 
+* pugixml: `a0e064336317c9347a91224112af9933598714e9`
+* basix: `75e880990af503717f1b894f14376b57057721dd`
+* ffcx: `2d080bfae4cce524cca3034b3254709c2ee31c3b` 
+* ufl: `677358ab5e9b84f32ff586e6ddb87f74f29a9c76`
+* dolfinx: `2a22e39e2ee35d21238e8bd92fac883c03d6fa6b` 
+
+Please also install [h5py](http://www.h5py.org) version 3.6.0 and [meshio](https://github.com/nschloe/meshio) version 5.3.4 (we recommend using `pip` for this purpose). 
+For compiling the figures you will also need a recent `latex` distribution installed on your machine.
+Now we are ready to clone the repository using 
+
+`git clone https://github.com/UCL/elastodynamics-uc.git` 
+
+and proceed as described in [How to reproduce](#repro).
 
 # How to reproduce 
 The `python` scripts for runnings the numerical experiments are located in the folder `scripts`. 

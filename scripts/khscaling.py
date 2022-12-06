@@ -131,6 +131,8 @@ if ( len(sys.argv) > 1):
         RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-4,gamma_CIP_primal_str="gamma-CIP-primal-0p0001")
     elif sys.argv[1] == "tiny":
         RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-6,gamma_CIP_primal_str="gamma-CIP-primal-0p000001")
+    #elif sys.argv[1] == "larger":
+    #   RunProblemConvexOscillatoryKhscaling(gamma_CIP_primal = 1e-3,gamma_CIP_primal_str="gamma-CIP-primal-m0p001-fp")
     else: 
         print("Invalid input.")
 else:

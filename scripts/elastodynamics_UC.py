@@ -361,9 +361,14 @@ def SolveProblem(problem,msh,refsol,order=1,pgamma=1e-5,palpha=1e-5,add_bc=False
             #a += gamma_CIP_primal * hbar * ufl.inner(ufl.jump(ufl.grad(u),n),ufl.jump(ufl.grad(w),n))*ufl.dS 
             #a += gamma_CIP_primal * hbar * ufl.inner(ufl.jump(ufl.grad(u)),ufl.jump(ufl.grad(w)))*ufl.dS 
         if order >= 2:
-            a += gamma_CIP_primal * hbar**3 * ufl.inner(ufl.jump( ufl.grad(sigma(u)),n),ufl.jump(ufl.grad(sigma(v)),n))*ufl.dS 
+            a += abs(gamma_CIP_primal) * hbar**3 * ufl.inner(ufl.jump( ufl.grad(sigma(u)),n),ufl.jump(ufl.grad(sigma(v)),n))*ufl.dS 
             a += gamma_CIP_primal * hbar**3 * ufl.inner(ufl.jump( ufl.grad(sigma(u)),n),ufl.jump(ufl.grad(sigma(w)),n))*ufl.dS 
             a += gamma_CIP_primal * hbar**3 * ufl.inner(ufl.jump( ufl.grad(sigma(v)),n),ufl.jump(ufl.grad(sigma(z)),n))*ufl.dS 
+            #
+            #a += abs(gamma_CIP_primal) * hbar**3 * ufl.inner(ufl.jump(ufl.grad(sigma(u))),ufl.jump(ufl.grad(sigma(v))))*ufl.dS 
+            #a += gamma_CIP_primal * hbar**3 * ufl.inner(ufl.jump( ufl.grad(sigma(u))),ufl.jump(ufl.grad(sigma(w))))*ufl.dS 
+            #a += gamma_CIP_primal * hbar**3 * ufl.inner(ufl.jump( ufl.grad(sigma(v))),ufl.jump(ufl.grad(sigma(z))))*ufl.dS 
+
         #if order == 3:
             #a += gamma_CIP_primal * 1e-2 * hbar**5 * ufl.inner(ufl.jump(  ufl.grad(ufl.grad(sigma(u))),n),ufl.jump(ufl.grad(ufl.grad(sigma(w))),n))*ufl.dS 
             #a += gamma_CIP_primal * hbar**5 * ufl.inner(ufl.jump( ufl.grad(ufl.grad(ufl.grad(u))),n),ufl.jump(ufl.grad(ufl.grad(ufl.grad(w))),n))*ufl.dS 
