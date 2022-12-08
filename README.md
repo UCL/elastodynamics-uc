@@ -153,7 +153,7 @@ The third column "L2-error-u-uh-B-minus" contains the relative errors in the par
 the data, while the fourth column "L2-error-u-uh-B-plus" gives the relative error in the part of the measurement domain that is located outside of the
 convex hull.
 
-To generate Fig.8 switch to the directory `scripts` and run 
+To generate Fig.8 switch to the directory `plots` and run 
 
     latexmk -pdf Split-domain-ill-posed-k1-div-allOmega.tex
 
@@ -168,7 +168,7 @@ the polynomial order of the FEM. The data in all these files is structured in th
 the number of degrees of freedom, respectively. The relative errors in Omega minus are given in the column `L2-error-u-uh-B-minus` 
 whereas the relative errors in Omega plus can be found in the column `L2-error-u-uh-B-plus`. 
 
-To generate Fig.8 switch to the directory `scripts` and run 
+To generate Fig.8 switch to the directory `plots` and run 
 
     latexmk -pdf Jump-Split-domain-k4.tex
 
