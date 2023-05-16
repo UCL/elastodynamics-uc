@@ -14,6 +14,10 @@ We describe two options to setup the software for running the experiments.
 
 We recommend the first option as it is quick and convenient. The second option provides higher flexibility but may be more complicated. 
 Please contact <j.preuss@ucl.ac.uk> if problems occur. 
+ 
+The instructions for running the image are geared towards users who have access to a Unix like environment with a `bash` shell.
+Windows users may use Linux subsystems or tools like [Git BASH](https://gitforwindows.org/) or [MobaXterm](https://mobaxterm.mobatek.net/) to 
+run these commands.
 
 ## Pulling the docker image from Docker Hub 
 * Please install the `docker` platform for your distribution as described [here](https://docs.docker.com/get-docker/).
@@ -24,7 +28,8 @@ distributions the command for the latter is either `sudo systemctl start docker`
 * Proceed further as described in [How to reproduce](#repro).
 
 ## Downloading the docker image from Zenodo
-* For this option the first two steps are the same as above. 
+* For this option the first two steps are the same as above.
+* The image can be downloaded [here](https://doi.org/10.5281/zenodo.7409109). 
 * Assuming that `elastodynamics-repro.tar` is the filename of the downloaded image, please load the image with `sudo docker load < elastodynamics-repro.tar`.
 * Run the image with `sudo docker run -it janosch2888/elastodynamics-uc:v1 bash `.
 * Proceed further as described in [How to reproduce](#repro).
@@ -66,6 +71,7 @@ This can be done by executing the following commands in a new terminal window (n
 
 Here, `/path/on/host/machine/` has to be adapted according to the file structure on the host machine. 
 The file `figure.pdf` can then be found at the designated path on the host machine and inspected with a common pdf viewer.
+(The command above assumes that the reproduction image is the latest docker image to be started on the machine). 
 
 ## Fig. 2 
 
